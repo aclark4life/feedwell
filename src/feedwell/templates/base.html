@@ -10,10 +10,9 @@
   <header class="container">
     <nav>
       <ul>
-        <li><strong>feedwell</strong></li>
+        <li><strong><a href="{% url 'feed' %}">feedwell</a></strong></li>
       </ul>
       <ul>
-        <li><a href="{% url 'feed' %}">Feed</a></li>
         {% if user.is_authenticated %}
           <li><a href="{% url 'connections' %}">Connections</a></li>
           <li>{{ user }}</li>
