@@ -13,7 +13,9 @@ from django.utils.dateparse import parse_datetime
 from django.utils.html import escape
 
 from .adapters import mastodon
+from .adapters import x as x_adapter
 from .adapters.mastodon import MastodonAPIError
+from .adapters.x import XAPIError
 from .models import Account, MediaItem, Metrics, Post
 
 
@@ -29,6 +31,8 @@ def sync_account(account: Account) -> int:
     """
     if account.platform == "mastodon":
         return _sync_mastodon_account(account)
+    if account.platform == "x":
+        return _sync_x_account(account)
     raise SyncError(f"No sync support yet for {account.get_platform_display()}.")
 
 
@@ -48,6 +52,8 @@ def sync_all_accounts(owner) -> tuple[int, list[str]]:
             errors.append(str(exc))
         except MastodonAPIError as exc:
             errors.append(f"{account}: {exc}")
+        except XAPIError as exc:
+            errors.append(f"{account}: {exc}")
     return total, errors
 
 
@@ -58,6 +64,56 @@ def _sync_mastodon_account(account: Account) -> int:
         if _upsert_mastodon_status(account, status):
             count += 1
     return count
+
+
+def _sync_x_account(account: Account) -> int:
+    payload = x_adapter.fetch_home_timeline(account)
+    tweets = payload.get("data") or []
+    users_by_id = {u["id"]: u for u in (payload.get("includes", {}).get("users") or [])}
+    media_by_key = {m["media_key"]: m for m in (payload.get("includes", {}).get("media") or [])}
+    count = 0
+    for tweet in tweets:
+        if _upsert_x_tweet(account, tweet, users_by_id, media_by_key):
+            count += 1
+    return count
+
+
+def _upsert_x_tweet(account: Account, tweet: dict, users_by_id: dict, media_by_key: dict) -> bool:
+    author = users_by_id.get(tweet.get("author_id")) or {}
+    metrics_data = tweet.get("public_metrics") or {}
+    metrics = Metrics(
+        likes=metrics_data.get("like_count") or 0,
+        reposts=metrics_data.get("retweet_count") or 0,
+        replies=metrics_data.get("reply_count") or 0,
+    )
+    media_keys = (tweet.get("attachments") or {}).get("media_keys") or []
+    media = [
+        MediaItem(
+            url=(media_by_key.get(key) or {}).get("url") or "",
+            media_type=(media_by_key.get(key) or {}).get("type") or "",
+            alt_text=(media_by_key.get(key) or {}).get("alt_text") or "",
+        )
+        for key in media_keys
+    ]
+    handle = author.get("username") or ""
+    posted_at = _parse_datetime(tweet.get("created_at")) or datetime.now(tz=UTC)
+
+    _, created = Post.objects.update_or_create(
+        account=account,
+        platform="x",
+        external_id=tweet["id"],
+        defaults={
+            "author_name": author.get("name") or handle,
+            "author_handle": handle,
+            "content": tweet.get("text") or "",
+            "url": f"https://x.com/{handle}/status/{tweet['id']}" if handle else "",
+            "posted_at": posted_at,
+            "metrics": metrics,
+            "media": media or None,
+            "raw": tweet,
+        },
+    )
+    return created
 
 
 def _upsert_mastodon_status(account: Account, status: dict) -> bool:

@@ -18,6 +18,12 @@ DEBUG = os.environ.get("FEEDWELL_DEBUG", "1") == "1"
 
 ALLOWED_HOSTS = os.environ.get("FEEDWELL_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
 
+# X (formerly Twitter) OAuth2 app credentials. Create an app at
+# https://developer.x.com/ and set its callback URL to
+# http://127.0.0.1:8000/connections/x/callback/ (or your real host).
+X_CLIENT_ID = os.environ.get("FEEDWELL_X_CLIENT_ID", "")
+X_CLIENT_SECRET = os.environ.get("FEEDWELL_X_CLIENT_SECRET", "")
+
 INSTALLED_APPS = [
     "feedwell.apps.MongoAdminConfig",
     "feedwell.apps.MongoAuthConfig",

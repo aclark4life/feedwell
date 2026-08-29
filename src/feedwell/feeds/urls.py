@@ -9,6 +9,8 @@ from .views import (
     MastodonConnectStartView,
     RefreshFeedView,
     ReorderConnectionsView,
+    XConnectCallbackView,
+    XConnectStartView,
 )
 
 urlpatterns = [
@@ -39,5 +41,15 @@ urlpatterns = [
         "connections/reorder/",
         ReorderConnectionsView.as_view(),
         name="reorder_connections",
+    ),
+    path(
+        "connections/x/start/",
+        XConnectStartView.as_view(),
+        name="x_connect_start",
+    ),
+    path(
+        "connections/x/callback/",
+        XConnectCallbackView.as_view(),
+        name="x_connect_callback",
     ),
 ]

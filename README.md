@@ -40,8 +40,27 @@ Built with Django and [django-mongodb-backend](https://www.mongodb.com/docs/lang
 so posts and their platform-specific metadata (metrics, media) can be stored
 as embedded documents instead of forced into rigid relational tables.
 
+## Connecting X
+
+Connecting X requires your own X API app (free developer signup at
+https://developer.x.com/). Create an app with OAuth 2.0 enabled, set its
+callback URL to `http://127.0.0.1:8000/connections/x/callback/` (adjust
+host/port to match how you run feedwell), then set:
+
+```bash
+export FEEDWELL_X_CLIENT_ID="your-client-id"
+export FEEDWELL_X_CLIENT_SECRET="your-client-secret"
+```
+
+Note: X's free API tier only allows posting and reading your own profile —
+reading any timeline (which is what feedwell needs for the unified feed)
+requires a paid tier (Basic or higher). You can still connect your account
+on the free tier; refresh will just report that no posts could be fetched
+until you upgrade.
+
 ## Status
 
-Early scaffolding: a `feeds` app with `Account`/`Post` models, Django admin,
-and a bare unified-feed view. No platform integrations (Mastodon, Bluesky,
-RSS) or auth flow yet. Not yet useful. 🙂
+Early: `Account`/`Post` models, Django admin, and a unified-feed view.
+Mastodon is fully wired up (OAuth2, home timeline sync). X's connect flow
+is wired up too, but reading its timeline requires a paid X API tier.
+Facebook, Bluesky, and RSS aren't connected yet.

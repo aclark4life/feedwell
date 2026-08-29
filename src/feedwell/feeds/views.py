@@ -1,3 +1,6 @@
+import secrets
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
@@ -8,7 +11,9 @@ from django.views.generic import ListView
 from django.views.generic.edit import DeleteView, FormView
 
 from .adapters import mastodon
+from .adapters import x as x_adapter
 from .adapters.mastodon import MastodonAPIError
+from .adapters.x import XAPIError
 from .forms import ConnectAccountForm, MastodonInstanceForm
 from .models import PLATFORM_CHOICES, Account, Post
 from .sync import sync_all_accounts
@@ -84,6 +89,8 @@ class ConnectAccountView(LoginRequiredMixin, FormView):
         self.platform_label = dict(PLATFORM_CHOICES).get(self.platform_key, self.platform_key)
         if self.platform_key == "mastodon":
             return redirect(reverse("mastodon_connect_start"))
+        if self.platform_key == "x":
+            return redirect(reverse("x_connect_start"))
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -177,6 +184,63 @@ class MastodonConnectCallbackView(LoginRequiredMixin, View):
             },
         )
         messages.success(request, f"Connected {token.handle}@{instance_domain}.")
+        return redirect(reverse("connections"))
+
+
+class XConnectStartView(LoginRequiredMixin, View):
+    """Step 1 of the X connect flow: kick off OAuth2 PKCE authorization."""
+
+    def get(self, request, *args, **kwargs):
+        if not settings.X_CLIENT_ID:
+            messages.error(
+                request,
+                "X isn't configured yet. Set FEEDWELL_X_CLIENT_ID and "
+                "FEEDWELL_X_CLIENT_SECRET to enable connecting an X account.",
+            )
+            return redirect(reverse("connections"))
+
+        code_verifier, code_challenge = x_adapter.generate_pkce_pair()
+        state = secrets.token_urlsafe(16)
+        request.session["x_code_verifier"] = code_verifier
+        request.session["x_oauth_state"] = state
+
+        redirect_uri = request.build_absolute_uri(reverse("x_connect_callback"))
+        return redirect(x_adapter.build_authorize_url(redirect_uri, state, code_challenge))
+
+
+class XConnectCallbackView(LoginRequiredMixin, View):
+    """Step 2: handle the redirect back from X with an auth code."""
+
+    def get(self, request, *args, **kwargs):
+        code_verifier = request.session.pop("x_code_verifier", None)
+        expected_state = request.session.pop("x_oauth_state", None)
+        code = request.GET.get("code")
+        state = request.GET.get("state")
+
+        if not code_verifier or not code or state != expected_state:
+            messages.error(request, "X login was cancelled or incomplete.")
+            return redirect(reverse("connections"))
+
+        redirect_uri = request.build_absolute_uri(reverse("x_connect_callback"))
+        try:
+            token = x_adapter.exchange_code_for_token(code, redirect_uri, code_verifier)
+        except XAPIError as exc:
+            messages.error(request, str(exc))
+            return redirect(reverse("connections"))
+
+        Account.objects.update_or_create(
+            owner=request.user,
+            platform="x",
+            external_id=token.account_id,
+            defaults={
+                "handle": token.handle,
+                "display_name": token.display_name,
+                "avatar_url": token.avatar_url,
+                "access_token": token.access_token,
+                "metadata": {"refresh_token": token.refresh_token},
+            },
+        )
+        messages.success(request, f"Connected @{token.handle} on X.")
         return redirect(reverse("connections"))
 
 
