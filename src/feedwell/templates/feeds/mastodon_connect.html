@@ -3,7 +3,7 @@
 {% block content %}
   <h1>Connect Mastodon</h1>
   <p>Mastodon is federated, so tell us which instance your account is on.</p>
-  <form method="post">
+  <form method="post" hx-boost="false">
     {% csrf_token %}
     {{ form.as_p }}
     <button type="submit">Continue</button>
