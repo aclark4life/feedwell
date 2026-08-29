@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
   {% if user.is_authenticated and has_accounts %}
-    <form method="post" action="{% url 'refresh_feed' %}" style="text-align: right;">
+    <form
+      method="post"
+      action="{% url 'refresh_feed' %}"
+      hx-boost="false"
+      style="text-align: right;"
+      onsubmit="this.querySelector('button').setAttribute('aria-busy', 'true'); this.querySelector('button').textContent = 'Refreshing…';"
+    >
       {% csrf_token %}
       <button type="submit" class="outline">Refresh</button>
     </form>
