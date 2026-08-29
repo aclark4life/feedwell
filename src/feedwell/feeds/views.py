@@ -65,10 +65,18 @@ class ConnectAccountView(LoginRequiredMixin, FormView):
         return context
 
     def form_valid(self, form):
+        handle = form.cleaned_data["handle"]
+        external_id = handle or f"stub-{self.platform_key}"
+        if Account.objects.filter(
+            owner=self.request.user, platform=self.platform_key, external_id=external_id
+        ).exists():
+            form.add_error("handle", f"You've already connected {handle or 'this account'} on {self.platform_label}.")
+            return self.form_invalid(form)
+
         account = form.save(commit=False)
         account.owner = self.request.user
         account.platform = self.platform_key
-        account.external_id = account.handle or f"stub-{self.platform_key}"
+        account.external_id = external_id
         account.save()
         return redirect(reverse("connections"))
 
