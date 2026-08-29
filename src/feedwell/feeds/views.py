@@ -24,6 +24,12 @@ class FeedView(ListView):
             queryset = queryset.none()
         return queryset
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.user.is_authenticated:
+            context["has_accounts"] = Account.objects.filter(owner=self.request.user).exists()
+        return context
+
 
 class ConnectionsView(LoginRequiredMixin, ListView):
     """Shows every supported platform and whichever accounts are connected."""

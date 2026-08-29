@@ -11,7 +11,11 @@
       </article>
     {% endfor %}
   {% elif user.is_authenticated %}
-    <p>No posts yet. <a href="{% url 'connections' %}">Connect an account</a> to get started.</p>
+    {% if has_accounts %}
+      <p>No posts yet.</p>
+    {% else %}
+      <p>No posts yet. <a href="{% url 'connections' %}">Connect an account</a> to get started.</p>
+    {% endif %}
   {% else %}
     <p><a href="{% url 'login' %}">Log in</a> to see your feed.</p>
   {% endif %}
