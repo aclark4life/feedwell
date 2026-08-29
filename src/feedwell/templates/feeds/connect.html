@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Connect {{ platform_label }} - feedwell{% endblock %}
+{% block content %}
+  <h1>Connect {{ platform_label }}</h1>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Connect</button>
+  </form>
+  <p><a href="{% url 'connections' %}">Back to connections</a></p>
+{% endblock %}

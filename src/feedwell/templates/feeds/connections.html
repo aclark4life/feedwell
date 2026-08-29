@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Connections - feedwell{% endblock %}
+{% block content %}
+  <h1>Connections</h1>
+  <p>Connect the accounts you want folded into your unified feed. (Stub connect flow for now &mdash; no real login to each platform yet.)</p>
+
+  {% for platform in platforms %}
+    <div class="platform">
+      <h3>{{ platform.label }}</h3>
+      {% for account in platform.accounts %}
+        <div class="account-row">
+          <span>Connected as {{ account.display_name|default:account.handle }}</span>
+          <form method="post" action="{% url 'disconnect_account' account.pk %}">
+            {% csrf_token %}
+            <button type="submit">Disconnect</button>
+          </form>
+        </div>
+      {% empty %}
+        <a class="button" href="{% url 'connect_account' platform.key %}">Connect {{ platform.label }}</a>
+      {% endfor %}
+    </div>
+  {% endfor %}
+{% endblock %}

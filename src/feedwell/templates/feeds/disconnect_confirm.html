@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Disconnect - feedwell{% endblock %}
+{% block content %}
+  <h1>Disconnect account?</h1>
+  <p>Remove {{ object.display_name|default:object.handle }} ({{ object.get_platform_display }})?</p>
+  <form method="post">
+    {% csrf_token %}
+    <button type="submit">Disconnect</button>
+  </form>
+  <p><a href="{% url 'connections' %}">Cancel</a></p>
+{% endblock %}

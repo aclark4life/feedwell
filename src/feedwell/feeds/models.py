@@ -12,6 +12,8 @@ from django_mongodb_backend.fields import ArrayField, EmbeddedModelField
 from django_mongodb_backend.models import EmbeddedModel
 
 PLATFORM_CHOICES = [
+    ("x", "X"),
+    ("facebook", "Facebook"),
     ("mastodon", "Mastodon"),
     ("bluesky", "Bluesky"),
     ("rss", "RSS"),

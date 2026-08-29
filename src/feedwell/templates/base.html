@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <title>{% block title %}feedwell{% endblock %}</title>
+  <style>
+    body { font-family: sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem; }
+    nav { margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #ddd; }
+    nav a { margin-right: 1rem; }
+    .post { border-bottom: 1px solid #ddd; padding: 1rem 0; }
+    .empty { color: #666; }
+    .platform { border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .platform h3 { margin: 0 0 0.5rem; }
+    .account-row { display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0; }
+    form p { margin: 0.5rem 0; }
+    button, .button { cursor: pointer; }
+  </style>
+</head>
+<body>
+  <nav>
+    <strong>feedwell</strong>
+    <a href="{% url 'feed' %}">Feed</a>
+    {% if user.is_authenticated %}
+      <a href="{% url 'connections' %}">Connections</a>
+      <span>{{ user }}</span>
+      <form method="post" action="{% url 'logout' %}" style="display:inline">
+        {% csrf_token %}
+        <button type="submit">Log out</button>
+      </form>
+    {% else %}
+      <a href="{% url 'login' %}">Log in</a>
+    {% endif %}
+  </nav>
+  {% block content %}{% endblock %}
+</body>
+</html>

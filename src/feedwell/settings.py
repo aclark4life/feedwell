@@ -1,8 +1,7 @@
 """Django settings for the feedwell project.
 
 Configured to use MongoDB via django-mongodb-backend. Override the
-connection with the FEEDWELL_MONGODB_URI and FEEDWELL_MONGODB_NAME
-environment variables.
+connection with the MONGODB_URI environment variable.
 """
 
 import os
@@ -95,3 +94,7 @@ MIGRATION_MODULES = {
     "auth": "feedwell.mongo_migrations.auth",
     "contenttypes": "feedwell.mongo_migrations.contenttypes",
 }
+
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/"
