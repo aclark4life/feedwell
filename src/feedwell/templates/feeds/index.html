@@ -1,11 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
+  {% if user.is_authenticated and has_accounts %}
+    <form method="post" action="{% url 'refresh_feed' %}" style="text-align: right;">
+      {% csrf_token %}
+      <button type="submit" class="outline">Refresh</button>
+    </form>
+  {% endif %}
+
   {% if posts %}
     {% for post in posts %}
       <article>
         <strong>{{ post.author_handle|default:post.author_name }}</strong>
         <small>({{ post.platform }})</small>
-        <p>{{ post.content }}</p>
+        <p>{{ post.content|safe }}</p>
       </article>
     {% endfor %}
   {% elif user.is_authenticated %}

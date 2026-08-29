@@ -17,6 +17,7 @@ dependencies = [
     "django>=6.1,<6.2",
     "django-mongodb-backend>=6.1,<6.2",
     "typer>=0.12",
+    "requests>=2.31",
 ]
 
 [project.urls]

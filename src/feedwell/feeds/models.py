@@ -19,6 +19,24 @@ PLATFORM_CHOICES = [
 ]
 
 
+class MastodonApp(models.Model):
+    """OAuth app credentials for a single Mastodon instance, registered once and reused.
+
+    Mastodon requires each client application to register itself with every
+    instance it talks to (there's no single central API like X/Facebook).
+    We cache the client_id/secret per instance domain so repeated connect
+    attempts against the same instance don't re-register every time.
+    """
+
+    instance_domain = models.CharField(max_length=255, unique=True)
+    client_id = models.CharField(max_length=255)
+    client_secret = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return self.instance_domain
+
+
 class Account(models.Model):
     """A connected social media account belonging to a feedwell user."""
 
@@ -29,6 +47,9 @@ class Account(models.Model):
     handle = models.CharField(max_length=255, blank=True)
     avatar_url = models.URLField(blank=True)
     access_token = models.CharField(max_length=1024, blank=True)
+    metadata = models.JSONField(
+        default=dict, blank=True, help_text="Platform-specific extras, e.g. Mastodon instance domain"
+    )
     connected_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
