@@ -8,7 +8,7 @@ instead of forcing everything into rigid relational tables.
 
 from django.conf import settings
 from django.db import models
-from django_mongodb_backend.fields import ArrayField, EmbeddedModelField
+from django_mongodb_backend.fields import EmbeddedModelArrayField, EmbeddedModelField
 from django_mongodb_backend.models import EmbeddedModel
 
 PLATFORM_CHOICES = [
@@ -73,7 +73,7 @@ class Metrics(EmbeddedModel):
 class MediaItem(EmbeddedModel):
     """A single media attachment (image, video, etc.) embedded on a Post."""
 
-    url = models.URLField()
+    url = models.URLField(blank=True)
     media_type = models.CharField(max_length=32, blank=True)
     alt_text = models.CharField(max_length=1000, blank=True)
 
@@ -91,7 +91,7 @@ class Post(models.Model):
     posted_at = models.DateTimeField()
     fetched_at = models.DateTimeField(auto_now_add=True)
     metrics = EmbeddedModelField(Metrics, null=True, blank=True)
-    media = ArrayField(EmbeddedModelField(MediaItem), null=True, blank=True)
+    media = EmbeddedModelArrayField(MediaItem, null=True, blank=True)
     raw = models.JSONField(default=dict, blank=True, help_text="Original payload from the source platform")
 
     class Meta:
