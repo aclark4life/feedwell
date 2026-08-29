@@ -63,17 +63,17 @@ def _upsert_mastodon_status(account: Account, status: dict) -> bool:
     posted_at = _parse_datetime(status.get("created_at")) or datetime.now(tz=UTC)
     author = status.get("account") or {}
     metrics = Metrics(
-        likes=status.get("favourites_count", 0) or 0,
-        reposts=status.get("reblogs_count", 0) or 0,
-        replies=status.get("replies_count", 0) or 0,
+        likes=status.get("favourites_count") or 0,
+        reposts=status.get("reblogs_count") or 0,
+        replies=status.get("replies_count") or 0,
     )
     media = [
         MediaItem(
-            url=item.get("url", ""),
-            media_type=item.get("type", ""),
+            url=item.get("url") or "",
+            media_type=item.get("type") or "",
             alt_text=item.get("description") or "",
         )
-        for item in status.get("media_attachments", []) or []
+        for item in status.get("media_attachments") or []
     ]
 
     _, created = Post.objects.update_or_create(
@@ -81,10 +81,10 @@ def _upsert_mastodon_status(account: Account, status: dict) -> bool:
         platform="mastodon",
         external_id=status["id"],
         defaults={
-            "author_name": author.get("display_name") or author.get("acct", ""),
-            "author_handle": author.get("acct", ""),
-            "content": status.get("content", ""),
-            "url": status.get("url", ""),
+            "author_name": author.get("display_name") or author.get("acct") or "",
+            "author_handle": author.get("acct") or "",
+            "content": status.get("content") or "",
+            "url": status.get("url") or "",
             "posted_at": posted_at,
             "metrics": metrics,
             "media": media or None,
