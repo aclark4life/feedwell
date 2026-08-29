@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from django.utils.dateparse import parse_datetime
+from django.utils.html import escape
 
 from .adapters import mastodon
 from .adapters.mastodon import MastodonAPIError
@@ -60,12 +61,23 @@ def _sync_mastodon_account(account: Account) -> int:
 
 
 def _upsert_mastodon_status(account: Account, status: dict) -> bool:
+    booster = status.get("account") or {}
+    reblog = status.get("reblog")
+    # Boosts carry no content/media/url of their own -- the actual post lives
+    # in the nested "reblog" object. Unwrap it so boosted posts render with
+    # real content instead of showing up blank, while noting who boosted it.
+    content_source = reblog if reblog else status
+    author = content_source.get("account") or {}
+    booster_name = booster.get("display_name") or booster.get("acct") or ""
+    boosted_by = (
+        f"<p><em>🔁 Boosted by {escape(booster_name)}</em></p>" if reblog and booster_name else ""
+    )
+
     posted_at = _parse_datetime(status.get("created_at")) or datetime.now(tz=UTC)
-    author = status.get("account") or {}
     metrics = Metrics(
-        likes=status.get("favourites_count") or 0,
-        reposts=status.get("reblogs_count") or 0,
-        replies=status.get("replies_count") or 0,
+        likes=content_source.get("favourites_count") or 0,
+        reposts=content_source.get("reblogs_count") or 0,
+        replies=content_source.get("replies_count") or 0,
     )
     media = [
         MediaItem(
@@ -73,7 +85,7 @@ def _upsert_mastodon_status(account: Account, status: dict) -> bool:
             media_type=item.get("type") or "",
             alt_text=item.get("description") or "",
         )
-        for item in status.get("media_attachments") or []
+        for item in content_source.get("media_attachments") or []
     ]
 
     _, created = Post.objects.update_or_create(
@@ -83,8 +95,8 @@ def _upsert_mastodon_status(account: Account, status: dict) -> bool:
         defaults={
             "author_name": author.get("display_name") or author.get("acct") or "",
             "author_handle": author.get("acct") or "",
-            "content": status.get("content") or "",
-            "url": status.get("url") or "",
+            "content": boosted_by + (content_source.get("content") or ""),
+            "url": content_source.get("url") or "",
             "posted_at": posted_at,
             "metrics": metrics,
             "media": media or None,
