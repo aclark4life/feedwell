@@ -1,6 +1,6 @@
 # feedwell
 
-> All social media accounts suck. This one just sucks less.
+> All social media clients suck. This one just sucks less.
 
 A unified, local-first client for your social media feeds — one place to
 read and interact with everything, instead of juggling a pile of terrible
