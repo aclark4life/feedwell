@@ -16,7 +16,6 @@ PLATFORM_CHOICES = [
     ("facebook", "Facebook"),
     ("mastodon", "Mastodon"),
     ("bluesky", "Bluesky"),
-    ("rss", "RSS"),
 ]
 
 
