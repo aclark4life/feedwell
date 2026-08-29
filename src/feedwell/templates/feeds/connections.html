@@ -15,9 +15,10 @@
             <button type="submit">Disconnect</button>
           </form>
         </div>
-      {% empty %}
-        <a class="button" href="{% url 'connect_account' platform.key %}">Connect {{ platform.label }}</a>
       {% endfor %}
+      <a class="button" href="{% url 'connect_account' platform.key %}">
+        {% if platform.accounts %}+ Add another {{ platform.label }} account{% else %}Connect {{ platform.label }}{% endif %}
+      </a>
     </div>
   {% endfor %}
 {% endblock %}
