@@ -1,6 +1,6 @@
 # feedwell
 
-> "All social media clients suck. This one just sucks less." —me, 2026.
+> "All social media clients suck. This one just sucks less." —[aclark4life](https://github.com/aclark4life), 2026.
 
 A unified, local-first client for your social media feeds — one place to
 read and interact with everything, instead of juggling a pile of terrible
