@@ -2,23 +2,73 @@
 {% block title %}Connections - feedwell{% endblock %}
 {% block content %}
   <h1>Connections</h1>
-  <p>Connect the accounts you want folded into your unified feed. (Stub connect flow for now &mdash; no real login to each platform yet.)</p>
+  <p>Connect the accounts you want folded into your unified feed. (Stub connect flow for now &mdash; no real login to each platform yet.) Drag a panel to reorder it.</p>
 
-  {% for platform in platforms %}
-    <article>
-      <h3>{{ platform.label }}</h3>
-      {% for account in platform.accounts %}
-        <div class="grid">
-          <span>Connected as {{ account.display_name|default:account.handle }}</span>
-          <form method="post" action="{% url 'disconnect_account' account.pk %}">
-            {% csrf_token %}
-            <button type="submit" class="secondary outline">Disconnect</button>
-          </form>
-        </div>
-      {% endfor %}
-      <a role="button" class="outline" href="{% url 'connect_account' platform.key %}">
-        {% if platform.accounts %}+ Add another {{ platform.label }} account{% else %}Connect {{ platform.label }}{% endif %}
-      </a>
-    </article>
-  {% endfor %}
+  <div id="connection-panels">
+    {% for platform in platforms %}
+      <article draggable="true" data-platform-key="{{ platform.key }}" class="connection-panel">
+        <h3>{{ platform.label }}</h3>
+        {% for account in platform.accounts %}
+          <div class="grid">
+            <span>Connected as {{ account.display_name|default:account.handle }}</span>
+            <form method="post" action="{% url 'disconnect_account' account.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="secondary outline">Disconnect</button>
+            </form>
+          </div>
+        {% endfor %}
+        <a role="button" class="outline" href="{% url 'connect_account' platform.key %}">
+          {% if platform.accounts %}+ Add another {{ platform.label }} account{% else %}Connect {{ platform.label }}{% endif %}
+        </a>
+      </article>
+    {% endfor %}
+  </div>
+
+  <style>
+    .connection-panel { cursor: grab; }
+    .connection-panel.dragging { opacity: 0.4; }
+  </style>
+  <script>
+    (function () {
+      const container = document.getElementById("connection-panels");
+      let dragged = null;
+
+      container.addEventListener("dragstart", (event) => {
+        dragged = event.target.closest(".connection-panel");
+        dragged.classList.add("dragging");
+      });
+
+      container.addEventListener("dragend", () => {
+        if (dragged) dragged.classList.remove("dragging");
+        dragged = null;
+        saveOrder();
+      });
+
+      container.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        const target = event.target.closest(".connection-panel");
+        if (!target || target === dragged) return;
+        const rect = target.getBoundingClientRect();
+        const before = event.clientY < rect.top + rect.height / 2;
+        container.insertBefore(dragged, before ? target : target.nextSibling);
+      });
+
+      function saveOrder() {
+        const order = [...container.querySelectorAll(".connection-panel")].map(
+          (panel) => panel.dataset.platformKey
+        );
+        const body = new URLSearchParams();
+        order.forEach((key) => body.append("order", key));
+        fetch("{% url 'reorder_connections' %}", {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": "{{ csrf_token }}",
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: body.toString(),
+        });
+      }
+    })();
+  </script>
 {% endblock %}
+

@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.views import View
@@ -51,11 +52,25 @@ class ConnectionsView(LoginRequiredMixin, ListView):
         accounts_by_platform = {}
         for account in context["accounts"]:
             accounts_by_platform.setdefault(account.platform, []).append(account)
-        context["platforms"] = [
-            {"key": key, "label": label, "accounts": accounts_by_platform.get(key, [])}
+        platforms = {
+            key: {"key": key, "label": label, "accounts": accounts_by_platform.get(key, [])}
             for key, label in PLATFORM_CHOICES
-        ]
+        }
+        order = self.request.session.get("connection_order") or []
+        ordered_keys = [key for key in order if key in platforms]
+        ordered_keys += [key for key in platforms if key not in ordered_keys]
+        context["platforms"] = [platforms[key] for key in ordered_keys]
         return context
+
+
+class ReorderConnectionsView(LoginRequiredMixin, View):
+    """Persists the drag-and-drop order of connection panels in the session."""
+
+    def post(self, request, *args, **kwargs):
+        valid_keys = {key for key, _ in PLATFORM_CHOICES}
+        order = [key for key in request.POST.getlist("order") if key in valid_keys]
+        request.session["connection_order"] = order
+        return HttpResponse(status=204)
 
 
 class ConnectAccountView(LoginRequiredMixin, FormView):
