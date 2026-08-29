@@ -5,6 +5,10 @@
   <title>{% block title %}feedwell{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'vendor/pico.min.css' %}">
   <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
+  <style>
+    body { display: flex; flex-direction: column; min-height: 100vh; }
+    main { flex: 1; }
+  </style>
 </head>
 <body hx-boost="true">
   <header class="container">
