@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <title>feedwell</title>
+  <style>
+    body { font-family: sans-serif; max-width: 40rem; margin: 3rem auto; }
+    .post { border-bottom: 1px solid #ddd; padding: 1rem 0; }
+    .empty { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>feedwell</h1>
+  <p><em>All social media accounts suck. This one just sucks less.</em></p>
+
+  {% if posts %}
+    {% for post in posts %}
+      <div class="post">
+        <strong>{{ post.author_handle|default:post.author_name }}</strong>
+        <small>({{ post.platform }})</small>
+        <p>{{ post.content }}</p>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="empty">No posts yet. Connect an account to get started.</p>
+  {% endif %}
+</body>
+</html>

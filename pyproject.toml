@@ -13,7 +13,10 @@ authors = [
     {name = "Jeffrey 'Alex' Clark"},
 ]
 
-dependencies = []
+dependencies = [
+    "django>=6.1,<6.2",
+    "django-mongodb-backend>=6.1,<6.2",
+]
 
 [project.urls]
 Homepage = "https://github.com/aclark4life/feedwell"
@@ -23,6 +26,7 @@ Issues = "https://github.com/aclark4life/feedwell/issues"
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
+    "pytest-django>=4.8.0",
     "pre-commit>=3.0.0",
     "ruff>=0.8.0",
     "mypy>=1.0.0",
@@ -36,6 +40,7 @@ packages = ["src/feedwell"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+DJANGO_SETTINGS_MODULE = "feedwell.settings"
 
 [tool.ruff]
 line-length = 100
