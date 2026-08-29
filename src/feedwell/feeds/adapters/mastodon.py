@@ -123,7 +123,7 @@ def exchange_code_for_token(app: MastodonApp, code: str, redirect_uri: str) -> T
     verify = _request(
         "get",
         f"https://{app.instance_domain}/api/v1/accounts/verify_credentials",
-        headers={"Authorization": f"Bearer {access_token}"},
+        headers={"Authorization": "Bearer " + access_token},
     )
     if not verify.ok:
         raise MastodonAPIError(
@@ -141,7 +141,9 @@ def exchange_code_for_token(app: MastodonApp, code: str, redirect_uri: str) -> T
 
 
 def fetch_statuses(account) -> list[dict]:
-    """Fetch recent statuses (posts) for a connected Mastodon account.
+    """Fetch the account's home timeline: posts from people they follow on
+    Mastodon, which is what feedwell's unified "feed" is meant to show
+    (not just the account's own posts).
 
     Returns raw Mastodon API status dicts; normalization into Post rows
     happens in the sync layer so all adapters share one upsert path.
@@ -152,12 +154,12 @@ def fetch_statuses(account) -> list[dict]:
 
     response = _request(
         "get",
-        f"https://{instance_domain}/api/v1/accounts/{account.external_id}/statuses",
-        headers={"Authorization": f"Bearer {account.access_token}"},
-        params={"limit": 40, "exclude_replies": "true", "exclude_reblogs": "false"},
+        f"https://{instance_domain}/api/v1/timelines/home",
+        headers={"Authorization": "Bearer " + account.access_token},
+        params={"limit": 40},
     )
     if not response.ok:
         raise MastodonAPIError(
-            f"Could not fetch posts from {instance_domain} ({response.status_code})."
+            f"Could not fetch your feed from {instance_domain} ({response.status_code})."
         )
     return response.json()

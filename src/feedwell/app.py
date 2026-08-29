@@ -92,11 +92,14 @@ def _serve(*, debug: bool) -> None:
 
     verbosity = 1 if debug else 0
 
-    # With the autoreloader enabled, Django re-execs this whole process in a
-    # child and sets RUN_MAIN=true there. Only do migrate/admin-setup/browser
-    # launch once, in the process that will actually serve requests.
+    # Django's autoreloader works via an outer "watcher" process that spawns
+    # a fresh inner subprocess (RUN_MAIN=true) each time it restarts the
+    # server after a code change -- so RUN_MAIN alone can't tell "first
+    # launch" from "just reloaded after an edit". The outer watcher process,
+    # however, runs this exact line exactly once per `feedwell` invocation,
+    # before the reloader loop ever starts, so do one-time setup there.
     is_reloader_child = os.environ.get("RUN_MAIN") == "true"
-    if is_reloader_child:
+    if not is_reloader_child:
         call_command("migrate", interactive=False, verbosity=verbosity)
         _ensure_default_admin()
 
