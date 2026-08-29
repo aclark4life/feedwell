@@ -91,13 +91,20 @@ def _serve(*, debug: bool) -> None:
     from django.core.management import call_command
 
     verbosity = 1 if debug else 0
-    call_command("migrate", interactive=False, verbosity=verbosity)
-    _ensure_default_admin()
 
-    url = f"http://{HOST}:{PORT}/"
-    print(f"feedwell running at {url} (Ctrl+C to stop)")
-    threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    call_command("runserver", f"{HOST}:{PORT}", use_reloader=False, verbosity=verbosity)
+    # With the autoreloader enabled, Django re-execs this whole process in a
+    # child and sets RUN_MAIN=true there. Only do migrate/admin-setup/browser
+    # launch once, in the process that will actually serve requests.
+    is_reloader_child = os.environ.get("RUN_MAIN") == "true"
+    if is_reloader_child:
+        call_command("migrate", interactive=False, verbosity=verbosity)
+        _ensure_default_admin()
+
+        url = f"http://{HOST}:{PORT}/"
+        print(f"feedwell running at {url} (Ctrl+C to stop)")
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+
+    call_command("runserver", f"{HOST}:{PORT}", use_reloader=True, verbosity=verbosity)
 
 
 def _ensure_default_admin() -> None:
