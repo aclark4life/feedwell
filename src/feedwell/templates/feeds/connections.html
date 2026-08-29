@@ -5,20 +5,20 @@
   <p>Connect the accounts you want folded into your unified feed. (Stub connect flow for now &mdash; no real login to each platform yet.)</p>
 
   {% for platform in platforms %}
-    <div class="platform">
+    <article>
       <h3>{{ platform.label }}</h3>
       {% for account in platform.accounts %}
-        <div class="account-row">
+        <div class="grid">
           <span>Connected as {{ account.display_name|default:account.handle }}</span>
           <form method="post" action="{% url 'disconnect_account' account.pk %}">
             {% csrf_token %}
-            <button type="submit">Disconnect</button>
+            <button type="submit" class="secondary outline">Disconnect</button>
           </form>
         </div>
       {% endfor %}
-      <a class="button" href="{% url 'connect_account' platform.key %}">
+      <a role="button" class="outline" href="{% url 'connect_account' platform.key %}">
         {% if platform.accounts %}+ Add another {{ platform.label }} account{% else %}Connect {{ platform.label }}{% endif %}
       </a>
-    </div>
+    </article>
   {% endfor %}
 {% endblock %}

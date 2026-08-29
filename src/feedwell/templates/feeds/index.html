@@ -4,15 +4,15 @@
 
   {% if posts %}
     {% for post in posts %}
-      <div class="post">
+      <article>
         <strong>{{ post.author_handle|default:post.author_name }}</strong>
         <small>({{ post.platform }})</small>
         <p>{{ post.content }}</p>
-      </div>
+      </article>
     {% endfor %}
   {% elif user.is_authenticated %}
-    <p class="empty">No posts yet. <a href="{% url 'connections' %}">Connect an account</a> to get started.</p>
+    <p>No posts yet. <a href="{% url 'connections' %}">Connect an account</a> to get started.</p>
   {% else %}
-    <p class="empty"><a href="{% url 'login' %}">Log in</a> to see your feed.</p>
+    <p><a href="{% url 'login' %}">Log in</a> to see your feed.</p>
   {% endif %}
 {% endblock %}
