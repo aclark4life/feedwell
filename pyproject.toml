@@ -7,7 +7,7 @@ name = "feedwell"
 version = "0.1.0a1"
 description = "All social media clients suck. This one just sucks less."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
     {name = "Jeffrey 'Alex' Clark"},
@@ -45,7 +45,7 @@ DJANGO_SETTINGS_MODULE = "feedwell.settings"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
