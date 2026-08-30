@@ -53,6 +53,14 @@ def sync_all_accounts(owner) -> tuple[int, list[str]]:
         except MastodonAPIError as exc:
             errors.append(f"{account}: {exc}")
         except XAPIError as exc:
+            # For an X account still awaiting profile resolution (shown as
+            # "(pending profile)"), the connect-time flash message already
+            # explained why (e.g. X's billing enrollment requirement).
+            # Don't repeat that same explanation on every Refresh click --
+            # it'll resolve itself silently once the underlying issue is
+            # fixed, via _resolve_x_profile().
+            if account.external_id.startswith("pending:"):
+                continue
             errors.append(f"{account}: {exc}")
     return total, errors
 
