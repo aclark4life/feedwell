@@ -5,14 +5,16 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView
 from django.views.generic.edit import DeleteView, FormView
 
+from .adapters import facebook as facebook_adapter
 from .adapters import mastodon
 from .adapters import x as x_adapter
+from .adapters.facebook import FacebookAPIError
 from .adapters.mastodon import MastodonAPIError
 from .adapters.x import XAPIError
 from .forms import ConnectAccountForm, MastodonInstanceForm
@@ -93,7 +95,7 @@ class ConnectAccountView(LoginRequiredMixin, FormView):
         if self.platform_key == "x":
             return redirect(reverse("x_connect_start"))
         if self.platform_key == "facebook":
-            return render(request, "feeds/facebook_unavailable.html", {})
+            return redirect(reverse("facebook_connect_start"))
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -259,6 +261,70 @@ class XConnectCallbackView(LoginRequiredMixin, View):
             messages.warning(request, token.profile_error)
         else:
             messages.success(request, f"Connected @{token.handle} on X.")
+        return redirect(reverse("connections"))
+
+
+class FacebookConnectStartView(LoginRequiredMixin, View):
+    """Step 1: redirect to Facebook's OAuth authorize screen.
+
+    Note: this only proves who you are (public_profile scope) -- there's
+    no API for reading a personal News Feed, for any app, so connecting
+    a Facebook account never syncs any posts. See
+    feeds/adapters/facebook.py for why.
+    """
+
+    def get(self, request, *args, **kwargs):
+        if not settings.FACEBOOK_CLIENT_ID:
+            messages.error(
+                request,
+                "Facebook isn't configured yet. Set FEEDWELL_FACEBOOK_CLIENT_ID and "
+                "FEEDWELL_FACEBOOK_CLIENT_SECRET to enable connecting a Facebook account.",
+            )
+            return redirect(reverse("connections"))
+
+        state = secrets.token_urlsafe(16)
+        request.session["facebook_oauth_state"] = state
+
+        redirect_uri = request.build_absolute_uri(reverse("facebook_connect_callback"))
+        return redirect(facebook_adapter.build_authorize_url(redirect_uri, state))
+
+
+class FacebookConnectCallbackView(LoginRequiredMixin, View):
+    """Step 2: handle the redirect back from Facebook with an auth code."""
+
+    def get(self, request, *args, **kwargs):
+        expected_state = request.session.pop("facebook_oauth_state", None)
+        code = request.GET.get("code")
+        state = request.GET.get("state")
+
+        if not code or state != expected_state:
+            messages.error(request, "Facebook login was cancelled or incomplete.")
+            return redirect(reverse("connections"))
+
+        redirect_uri = request.build_absolute_uri(reverse("facebook_connect_callback"))
+        try:
+            token = facebook_adapter.exchange_code_for_token(code, redirect_uri)
+        except FacebookAPIError as exc:
+            messages.error(request, str(exc))
+            return redirect(reverse("connections"))
+
+        Account.objects.update_or_create(
+            owner=request.user,
+            platform="facebook",
+            external_id=token.account_id,
+            defaults={
+                "handle": token.handle,
+                "display_name": token.display_name,
+                "avatar_url": token.avatar_url,
+                "access_token": token.access_token,
+            },
+        )
+        messages.success(request, f"Connected {token.display_name or 'your account'} on Facebook.")
+        messages.warning(
+            request,
+            "Heads up: Facebook has no API for reading a personal News Feed, for any "
+            "app, so this connection is identity-only and will never sync posts.",
+        )
         return redirect(reverse("connections"))
 
 

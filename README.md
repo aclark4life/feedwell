@@ -73,12 +73,25 @@ requirement, nothing to fix in feedwell — the connection is still saved
 you enable billing automatically fills in your real profile and starts
 syncing your timeline, no need to reconnect.
 
+## Connecting Facebook
+
+Facebook Login works the same way (create an app at
+https://developers.facebook.com/, set its OAuth redirect URI to
+`http://127.0.0.1:8000/connections/facebook/callback/`, then
+`feedwell config-set facebook.client_id/facebook.client_secret` or the
+`FEEDWELL_FACEBOOK_CLIENT_ID`/`FEEDWELL_FACEBOOK_CLIENT_SECRET` env vars).
+
+**Important:** this only proves who you are. Meta removed the ability
+for third-party apps to read a personal News Feed back in 2018 and it
+has never come back — there's no scope any app can request that
+returns feed posts for a personal profile, paid or not. Connecting
+Facebook saves your name/photo and nothing else ever syncs; feedwell
+tells you this right after you connect.
+
 ## Status
 
 Early: `Account`/`Post` models, Django admin, and a unified-feed view.
 Mastodon is fully wired up (OAuth2, home timeline sync). X's connect flow
 is wired up too, but reading its timeline requires a paid X API tier.
-Bluesky and RSS aren't connected yet. Facebook isn't connectable at all:
-Meta removed the ability for third-party apps to read a personal News
-Feed back in 2018 and it's never come back, so clicking "Connect
-Facebook" just explains that instead of pretending to work.
+Facebook Login is wired up as an identity-only connection (no posts ever
+sync — see above). Bluesky and RSS aren't connected yet.

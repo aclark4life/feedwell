@@ -31,6 +31,19 @@ X_CLIENT_SECRET = os.environ.get("FEEDWELL_X_CLIENT_SECRET") or feedwell_config.
     "x", "client_secret"
 )
 
+# Facebook Login OAuth2 app credentials. Create an app at
+# https://developers.facebook.com/ and set its OAuth redirect URI to
+# http://127.0.0.1:8000/connections/facebook/callback/ (or your real
+# host). Note: this only proves who you are (public_profile) -- Facebook
+# has no API for reading a personal News Feed, for any app, so connecting
+# never syncs posts. See feeds/adapters/facebook.py for details.
+FACEBOOK_CLIENT_ID = os.environ.get("FEEDWELL_FACEBOOK_CLIENT_ID") or feedwell_config.get(
+    "facebook", "client_id"
+)
+FACEBOOK_CLIENT_SECRET = os.environ.get("FEEDWELL_FACEBOOK_CLIENT_SECRET") or feedwell_config.get(
+    "facebook", "client_secret"
+)
+
 INSTALLED_APPS = [
     "feedwell.apps.MongoAdminConfig",
     "feedwell.apps.MongoAuthConfig",

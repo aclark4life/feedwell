@@ -4,6 +4,8 @@ from .views import (
     ConnectAccountView,
     ConnectionsView,
     DisconnectAccountView,
+    FacebookConnectCallbackView,
+    FacebookConnectStartView,
     FeedView,
     MastodonConnectCallbackView,
     MastodonConnectStartView,
@@ -51,5 +53,15 @@ urlpatterns = [
         "connections/x/callback/",
         XConnectCallbackView.as_view(),
         name="x_connect_callback",
+    ),
+    path(
+        "connections/facebook/start/",
+        FacebookConnectStartView.as_view(),
+        name="facebook_connect_start",
+    ),
+    path(
+        "connections/facebook/callback/",
+        FacebookConnectCallbackView.as_view(),
+        name="facebook_connect_callback",
     ),
 ]

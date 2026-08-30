@@ -33,6 +33,11 @@ def sync_account(account: Account) -> int:
         return _sync_mastodon_account(account)
     if account.platform == "x":
         return _sync_x_account(account)
+    if account.platform == "facebook":
+        # Facebook Login is connect-only (see adapters/facebook.py): there's
+        # no API for reading a personal News Feed, so there's nothing to
+        # sync, ever, for any account on this platform.
+        return 0
     raise SyncError(f"No sync support yet for {account.get_platform_display()}.")
 
 

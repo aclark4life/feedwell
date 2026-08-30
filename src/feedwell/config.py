@@ -19,6 +19,18 @@ CONFIG_FILENAME = "feedwell.toml"
 CONFIG_FIELDS = [
     ("x", "client_id", "FEEDWELL_X_CLIENT_ID", "X (Twitter) OAuth2 app client ID"),
     ("x", "client_secret", "FEEDWELL_X_CLIENT_SECRET", "X (Twitter) OAuth2 app client secret"),
+    (
+        "facebook",
+        "client_id",
+        "FEEDWELL_FACEBOOK_CLIENT_ID",
+        "Facebook Login OAuth2 app client ID",
+    ),
+    (
+        "facebook",
+        "client_secret",
+        "FEEDWELL_FACEBOOK_CLIENT_SECRET",
+        "Facebook Login OAuth2 app client secret",
+    ),
 ]
 
 _TEMPLATE = """\
@@ -34,6 +46,13 @@ _TEMPLATE = """\
 [x]
 # client_id = "your-x-client-id"
 # client_secret = "your-x-client-secret"
+
+# Facebook Login only proves who you are -- there's no API for reading a
+# personal News Feed, so connecting never syncs posts. See
+# feeds/adapters/facebook.py for why.
+[facebook]
+# client_id = "your-facebook-app-id"
+# client_secret = "your-facebook-app-secret"
 """
 
 
