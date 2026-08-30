@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}My posts - feedwell{% endblock %}
+{% block content %}
+  <h1>My posts</h1>
+  <p>Just your own posts, synced separately from the friends feed on the home page.</p>
+
+  {% if user.is_authenticated and has_synced_account %}
+    <form
+      method="post"
+      action="{% url 'refresh_my_posts' %}"
+      hx-boost="false"
+      style="text-align: right;"
+      onsubmit="this.querySelector('button').setAttribute('aria-busy', 'true'); this.querySelector('button').textContent = 'Refreshing…';"
+    >
+      {% csrf_token %}
+      <button type="submit" class="outline">Refresh</button>
+    </form>
+  {% endif %}
+
+  {% if posts %}
+    {% include "feeds/_post_list.html" %}
+  {% elif user.is_authenticated %}
+    {% if has_synced_account %}
+      <p>No posts yet.</p>
+    {% else %}
+      <p>
+        No posts yet. Connect a Mastodon or Bluesky account on the
+        <a href="{% url 'connections' %}">Connections</a> page to get started &mdash;
+        those are the only platforms this feed can sync from right now.
+      </p>
+    {% endif %}
+  {% else %}
+    <p><a href="{% url 'login' %}">Log in</a> to see your posts.</p>
+  {% endif %}
+{% endblock %}

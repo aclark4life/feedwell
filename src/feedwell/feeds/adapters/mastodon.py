@@ -25,6 +25,8 @@ from ..models import MastodonApp
 
 REQUEST_TIMEOUT = 10
 SCOPES = "read"
+STATUSES_PER_PAGE = 40  # Mastodon's max allowed "limit" per request
+MAX_OWN_STATUSES = 200  # how far back "My posts" pages via max_id per sync
 
 
 class MastodonAPIError(Exception):
@@ -138,6 +140,50 @@ def exchange_code_for_token(app: MastodonApp, code: str, redirect_uri: str) -> T
         display_name=account.get("display_name") or account["acct"],
         avatar_url=account.get("avatar", ""),
     )
+
+
+def fetch_own_statuses(account) -> list[dict]:
+    """Fetch the account's own posts -- what shows up on its Mastodon profile
+    page -- as opposed to fetch_statuses()'s aggregated home timeline.
+
+    Mastodon caps each request at 40 statuses, so this pages through
+    multiple requests via the "max_id" cursor (each subsequent request asks
+    for statuses older than the last one seen) until it's gathered
+    MAX_OWN_STATUSES posts or the account runs out of history. That gives
+    feedwell's "My posts" feed enough rows per sync to actually page
+    through with infinite scroll, instead of stalling out after one
+    40-post batch.
+
+    Powers feedwell's separate "My posts" feed. Uses the same access token
+    as the home-timeline sync; no extra scope or re-auth is needed since
+    "read" already covers reading an account's own statuses.
+    """
+    instance_domain = account.metadata.get("instance_domain")
+    if not instance_domain:
+        raise MastodonAPIError("This account is missing its Mastodon instance domain.")
+
+    statuses: list[dict] = []
+    max_id: str | None = None
+    while len(statuses) < MAX_OWN_STATUSES:
+        params = {"limit": STATUSES_PER_PAGE}
+        if max_id:
+            params["max_id"] = max_id
+        response = _request(
+            "get",
+            f"https://{instance_domain}/api/v1/accounts/{account.external_id}/statuses",
+            headers={"Authorization": "Bearer " + account.access_token},
+            params=params,
+        )
+        if not response.ok:
+            raise MastodonAPIError(
+                f"Could not fetch your posts from {instance_domain} ({response.status_code})."
+            )
+        batch = response.json()
+        if not batch:
+            break
+        statuses.extend(batch)
+        max_id = batch[-1]["id"]
+    return statuses
 
 
 def fetch_statuses(account) -> list[dict]:

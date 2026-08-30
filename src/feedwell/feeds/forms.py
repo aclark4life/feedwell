@@ -30,4 +30,19 @@ class MastodonInstanceForm(forms.Form):
     )
 
 
+class BlueskyLoginForm(forms.Form):
+    """Collects a Bluesky handle + app password (not the real account
+    password -- see feeds/adapters/bluesky.py)."""
+
+    identifier = forms.CharField(
+        label="Handle or email",
+        widget=forms.TextInput(attrs={"placeholder": "yourname.bsky.social"}),
+    )
+    app_password = forms.CharField(
+        label="App password",
+        widget=forms.PasswordInput(attrs={"placeholder": "xxxx-xxxx-xxxx-xxxx"}, render_value=False),
+        help_text="Generate one at bsky.app/settings/app-passwords -- don't use your real account password.",
+    )
+
+
 PLATFORM_LABELS = dict(PLATFORM_CHOICES)

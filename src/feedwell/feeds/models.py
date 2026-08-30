@@ -90,6 +90,11 @@ class Post(models.Model):
     url = models.URLField(blank=True)
     posted_at = models.DateTimeField()
     fetched_at = models.DateTimeField(auto_now_add=True)
+    is_own = models.BooleanField(
+        default=False,
+        help_text="True if this is a post the account itself made, synced via the "
+        "'My posts' feed rather than the friends/home-timeline feed.",
+    )
     metrics = EmbeddedModelField(Metrics, null=True, blank=True)
     media = EmbeddedModelArrayField(MediaItem, null=True, blank=True)
     raw = models.JSONField(default=dict, blank=True, help_text="Original payload from the source platform")

@@ -11,29 +11,48 @@ from django.views import View
 from django.views.generic import ListView
 from django.views.generic.edit import DeleteView, FormView
 
+from .adapters import bluesky
 from .adapters import facebook as facebook_adapter
 from .adapters import mastodon
 from .adapters import x as x_adapter
+from .adapters.bluesky import BlueskyAPIError
 from .adapters.facebook import FacebookAPIError
 from .adapters.mastodon import MastodonAPIError
 from .adapters.x import XAPIError
-from .forms import ConnectAccountForm, MastodonInstanceForm
+from .forms import BlueskyLoginForm, ConnectAccountForm, MastodonInstanceForm
 from .models import PLATFORM_CHOICES, Account, Post
-from .sync import sync_all_accounts
+from .sync import sync_all_accounts, sync_my_posts
 
 
-class FeedView(ListView):
+class InfiniteScrollListMixin:
+    """For paginated feed views: on an htmx "load more" request (fired by the
+    sentinel element at the bottom of the last post), render just the bare
+    post-list partial instead of the full page, so htmx can append it.
+    """
+
+    partial_template_name: str
+
+    def get_template_names(self):
+        if self.request.headers.get("HX-Request") == "true" and self.request.GET.get("page"):
+            return [self.partial_template_name]
+        return super().get_template_names()
+
+
+class FeedView(InfiniteScrollListMixin, ListView):
     """The unified feed: every post from every connected account, newest first."""
 
     model = Post
     template_name = "feeds/index.html"
+    partial_template_name = "feeds/_post_list.html"
     context_object_name = "posts"
     paginate_by = 25
 
     def get_queryset(self):
         queryset = super().get_queryset().select_related("account")
         if self.request.user.is_authenticated:
-            queryset = queryset.filter(account__owner=self.request.user)
+            # Own posts have their own separate "My posts" feed (/me) --
+            # keep them out of the friends/home timeline.
+            queryset = queryset.filter(account__owner=self.request.user, is_own=False)
         else:
             queryset = queryset.none()
         return queryset
@@ -43,6 +62,66 @@ class FeedView(ListView):
         if self.request.user.is_authenticated:
             context["has_accounts"] = Account.objects.filter(owner=self.request.user).exists()
         return context
+
+
+class MyPostsView(InfiniteScrollListMixin, LoginRequiredMixin, ListView):
+    """The "My posts" feed: just the signed-in user's own posts, synced
+    separately from the friends/home-timeline feed at "/".
+    """
+
+    model = Post
+    template_name = "feeds/my_posts.html"
+    partial_template_name = "feeds/_post_list.html"
+    context_object_name = "posts"
+    paginate_by = 25
+
+    def get(self, request, *args, **kwargs):
+        # Auto-sync the first time there's nothing to show yet, so viewing
+        # "My posts" for the first time (or after connecting Mastodon/Bluesky)
+        # doesn't require a manual Refresh click first. Skip this for htmx's
+        # infinite-scroll page requests -- those only fire once there's
+        # already at least one post to paginate past.
+        is_load_more = request.headers.get("HX-Request") == "true" and request.GET.get("page")
+        if not is_load_more:
+            has_synced_account = Account.objects.filter(
+                owner=request.user, platform__in=["mastodon", "bluesky"]
+            ).exists()
+            has_own_posts = Post.objects.filter(account__owner=request.user, is_own=True).exists()
+            if has_synced_account and not has_own_posts:
+                total, errors = sync_my_posts(request.user)
+                for error in errors:
+                    messages.warning(request, error)
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .select_related("account")
+            .filter(account__owner=self.request.user, is_own=True)
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["has_synced_account"] = Account.objects.filter(
+            owner=self.request.user, platform__in=["mastodon", "bluesky"]
+        ).exists()
+        return context
+
+
+class RefreshMyPostsView(LoginRequiredMixin, View):
+    """Manual sync trigger for the "My posts" feed."""
+
+    def post(self, request, *args, **kwargs):
+        total, errors = sync_my_posts(request.user)
+        if total:
+            count_label = "post" if total == 1 else "posts"
+            messages.success(request, f"Synced {total} new/updated {count_label}.")
+        for error in errors:
+            messages.warning(request, error)
+        if not total and not errors:
+            messages.info(request, "Nothing new to sync.")
+        return redirect(reverse("my_posts"))
 
 
 class ConnectionsView(LoginRequiredMixin, ListView):
@@ -96,6 +175,8 @@ class ConnectAccountView(LoginRequiredMixin, FormView):
             return redirect(reverse("x_connect_start"))
         if self.platform_key == "facebook":
             return redirect(reverse("facebook_connect_start"))
+        if self.platform_key == "bluesky":
+            return redirect(reverse("bluesky_connect_start"))
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -325,6 +406,39 @@ class FacebookConnectCallbackView(LoginRequiredMixin, View):
             "Heads up: Facebook has no API for reading a personal News Feed, for any "
             "app, so this connection is identity-only and will never sync posts.",
         )
+        return redirect(reverse("connections"))
+
+
+class BlueskyConnectStartView(LoginRequiredMixin, FormView):
+    """Bluesky login: a single form collecting a handle + app password
+    (no redirect/callback needed -- see feeds/adapters/bluesky.py)."""
+
+    form_class = BlueskyLoginForm
+    template_name = "feeds/bluesky_connect.html"
+
+    def form_valid(self, form):
+        identifier = form.cleaned_data["identifier"]
+        app_password = form.cleaned_data["app_password"]
+        try:
+            session = bluesky.create_session(identifier, app_password)
+        except BlueskyAPIError as exc:
+            form.add_error(None, str(exc))
+            return self.form_invalid(form)
+
+        Account.objects.update_or_create(
+            owner=self.request.user,
+            platform="bluesky",
+            external_id=session.did,
+            defaults={
+                "handle": session.handle,
+                "display_name": session.display_name or session.handle,
+                "avatar_url": session.avatar_url,
+                # No long-lived access_token stored -- every sync re-logs-in
+                # with the identifier/app password below.
+                "metadata": {"identifier": identifier, "app_password": app_password},
+            },
+        )
+        messages.success(self.request, f"Connected @{session.handle} on Bluesky.")
         return redirect(reverse("connections"))
 
 

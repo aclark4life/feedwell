@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Connect Bluesky - feedwell{% endblock %}
+{% block content %}
+  <h1>Connect Bluesky</h1>
+  <p>
+    Log in with an <strong>app password</strong>, not your real account password.
+    Generate one at
+    <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener noreferrer">
+      bsky.app/settings/app-passwords ↗
+    </a>.
+  </p>
+  {% if form.non_field_errors %}
+    <p style="color: var(--pico-del-color, crimson);">{{ form.non_field_errors|join:" " }}</p>
+  {% endif %}
+  <form method="post" hx-boost="false">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Connect</button>
+  </form>
+  <p><a href="{% url 'connections' %}">Back to connections</a></p>
+{% endblock %}

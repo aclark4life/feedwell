@@ -3,6 +3,7 @@
 <html>
 <head>
   <title>{% block title %}feedwell{% endblock %}</title>
+  <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
   <link rel="stylesheet" href="{% static 'vendor/pico.min.css' %}">
   <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
   <style>
@@ -23,6 +24,7 @@
       </ul>
       <ul>
         {% if user.is_authenticated %}
+          <li><a href="{% url 'my_posts' %}">My posts</a></li>
           <li><a href="{% url 'connections' %}">Connections</a></li>
           <li>{{ user }}</li>
           <li>

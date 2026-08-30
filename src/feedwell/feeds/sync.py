@@ -12,8 +12,10 @@ from datetime import UTC, datetime
 from django.utils.dateparse import parse_datetime
 from django.utils.html import escape
 
+from .adapters import bluesky
 from .adapters import mastodon
 from .adapters import x as x_adapter
+from .adapters.bluesky import BlueskyAPIError
 from .adapters.mastodon import MastodonAPIError
 from .adapters.x import XAPIError
 from .models import Account, MediaItem, Metrics, Post
@@ -33,6 +35,8 @@ def sync_account(account: Account) -> int:
         return _sync_mastodon_account(account)
     if account.platform == "x":
         return _sync_x_account(account)
+    if account.platform == "bluesky":
+        return _sync_bluesky_account(account)
     if account.platform == "facebook":
         # Facebook Login is connect-only (see adapters/facebook.py): there's
         # no API for reading a personal News Feed, so there's nothing to
@@ -57,6 +61,8 @@ def sync_all_accounts(owner) -> tuple[int, list[str]]:
             errors.append(str(exc))
         except MastodonAPIError as exc:
             errors.append(f"{account}: {exc}")
+        except BlueskyAPIError as exc:
+            errors.append(f"{account}: {exc}")
         except XAPIError as exc:
             # For an X account still awaiting profile resolution (shown as
             # "(pending profile)"), the connect-time flash message already
@@ -77,6 +83,44 @@ def _sync_mastodon_account(account: Account) -> int:
         if _upsert_mastodon_status(account, status):
             count += 1
     return count
+
+
+def _sync_bluesky_account(account: Account) -> int:
+    items = bluesky.fetch_timeline(account)
+    count = 0
+    for item in items:
+        if _upsert_bluesky_post(account, item):
+            count += 1
+    return count
+
+
+def sync_my_posts(owner) -> tuple[int, list[str]]:
+    """Sync the signed-in user's own posts (not the aggregated home timeline)
+    into the Post table, tagged is_own=True, powering the separate "My
+    posts" feed. Mastodon and Bluesky only for now, since they're the only
+    platforms whose connect flows can fetch this.
+    """
+    total = 0
+    errors: list[str] = []
+    for account in Account.objects.filter(owner=owner, platform="mastodon"):
+        try:
+            statuses = mastodon.fetch_own_statuses(account)
+        except MastodonAPIError as exc:
+            errors.append(f"{account}: {exc}")
+            continue
+        for status in statuses:
+            if _upsert_mastodon_status(account, status, own=True):
+                total += 1
+    for account in Account.objects.filter(owner=owner, platform="bluesky"):
+        try:
+            items = bluesky.fetch_own_posts(account)
+        except BlueskyAPIError as exc:
+            errors.append(f"{account}: {exc}")
+            continue
+        for item in items:
+            if _upsert_bluesky_post(account, item, own=True):
+                total += 1
+    return total, errors
 
 
 def _sync_x_account(account: Account) -> int:
@@ -150,7 +194,7 @@ def _upsert_x_tweet(account: Account, tweet: dict, users_by_id: dict, media_by_k
     return created
 
 
-def _upsert_mastodon_status(account: Account, status: dict) -> bool:
+def _upsert_mastodon_status(account: Account, status: dict, own: bool = False) -> bool:
     booster = status.get("account") or {}
     reblog = status.get("reblog")
     # Boosts carry no content/media/url of their own -- the actual post lives
@@ -178,20 +222,84 @@ def _upsert_mastodon_status(account: Account, status: dict) -> bool:
         for item in content_source.get("media_attachments") or []
     ]
 
+    defaults = {
+        "author_name": author.get("display_name") or author.get("acct") or "",
+        "author_handle": author.get("acct") or "",
+        "content": boosted_by + (content_source.get("content") or ""),
+        "url": content_source.get("url") or "",
+        "posted_at": posted_at,
+        "metrics": metrics,
+        "media": media or None,
+        "raw": status,
+    }
+    if own:
+        # Only ever set is_own=True, never flip it back to False -- a post
+        # picked up by the home-timeline sync too (e.g. seeing your own
+        # boost) is still one of "my posts".
+        defaults["is_own"] = True
+
     _, created = Post.objects.update_or_create(
         account=account,
         platform="mastodon",
         external_id=status["id"],
-        defaults={
-            "author_name": author.get("display_name") or author.get("acct") or "",
-            "author_handle": author.get("acct") or "",
-            "content": boosted_by + (content_source.get("content") or ""),
-            "url": content_source.get("url") or "",
-            "posted_at": posted_at,
-            "metrics": metrics,
-            "media": media or None,
-            "raw": status,
-        },
+        defaults=defaults,
+    )
+    return created
+
+
+def _upsert_bluesky_post(account: Account, item: dict, own: bool = False) -> bool:
+    post = item.get("post") or {}
+    reason = item.get("reason") or {}
+    reposter = reason.get("by") or {}
+    is_repost = reason.get("$type") == "app.bsky.feed.defs#reasonRepost"
+    reposter_name = reposter.get("displayName") or reposter.get("handle") or ""
+    reposted_by = (
+        f"<p><em>🔁 Reposted by {escape(reposter_name)}</em></p>" if is_repost and reposter_name else ""
+    )
+
+    author = post.get("author") or {}
+    record = post.get("record") or {}
+    handle = author.get("handle") or ""
+    uri = post.get("uri") or ""
+    rkey = uri.rsplit("/", 1)[-1] if uri else ""
+
+    text = escape(record.get("text") or "").replace("\n", "<br>")
+    posted_at = _parse_datetime(record.get("createdAt")) or datetime.now(tz=UTC)
+    metrics = Metrics(
+        likes=post.get("likeCount") or 0,
+        reposts=post.get("repostCount") or 0,
+        replies=post.get("replyCount") or 0,
+    )
+    embed = post.get("embed") or {}
+    media = [
+        MediaItem(
+            url=image.get("fullsize") or "",
+            media_type="image",
+            alt_text=image.get("alt") or "",
+        )
+        for image in embed.get("images") or []
+    ]
+
+    defaults = {
+        "author_name": author.get("displayName") or handle,
+        "author_handle": handle,
+        "content": reposted_by + text,
+        "url": f"https://bsky.app/profile/{handle}/post/{rkey}" if handle and rkey else "",
+        "posted_at": posted_at,
+        "metrics": metrics,
+        "media": media or None,
+        "raw": item,
+    }
+    if own:
+        # Only ever set is_own=True, never flip it back to False -- see the
+        # matching note in _upsert_mastodon_status.
+        defaults["is_own"] = True
+
+    _, created = Post.objects.update_or_create(
+        account=account,
+        platform="bluesky",
+        external_id=uri,
+        defaults=defaults,
     )
     return created
 
