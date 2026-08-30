@@ -1,15 +1,20 @@
 {% for post in posts %}
+  {% if post.day_header %}
+    <h6 class="day-divider"><span>{{ post.day_header }}</span></h6>
+  {% endif %}
   <article
     class="platform-{{ post.platform }}"
     {% if forloop.last and page_obj.has_next %}
-      hx-get="?page={{ page_obj.next_page_number }}"
+      hx-get="?page={{ page_obj.next_page_number }}&last_day={{ post.posted_at|date:'Y-m-d' }}"
       hx-trigger="revealed"
       hx-swap="afterend"
       hx-target="this"
     {% endif %}
   >
-    <strong>{{ post.author_handle|default:post.author_name }}</strong>
-    <small class="platform-label">({{ post.platform }})</small>
+    <div class="post-header">
+      <span><strong>{{ post.author_handle|default:post.author_name }}</strong> <small class="platform-label">({{ post.platform }})</small></span>
+      <time class="post-timestamp" datetime="{{ post.posted_at|date:'c' }}" title="{{ post.posted_at }}">{{ post.posted_at|date:"M j, g:i A" }}</time>
+    </div>
     <p>{{ post.content|safe }}</p>
     {% if post.url %}
       <p style="text-align: right;"><a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">Open on {{ post.get_platform_display }} ↗</a></p>

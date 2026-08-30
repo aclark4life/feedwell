@@ -8,6 +8,7 @@
   <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
   <style>
     body { display: flex; flex-direction: column; min-height: 100vh; }
+    html { scroll-behavior: smooth; }
     main { flex: 1; }
     .message { padding: 0.75rem 1rem; margin-bottom: 1rem; border-left: 4px solid; }
     .message-error { border-color: #c62828; background: #fdecea; color: #611a15; }
@@ -31,10 +32,29 @@
     .platform-x .platform-label { background: #000000; }
     .platform-facebook { border-left-color: #1877f2; background: #1877f214; }
     .platform-facebook .platform-label { background: #1877f2; }
+
+    /* Day divider: a centered label on a horizontal rule, marking each
+       new calendar day as you scroll through a feed. */
+    .day-divider {
+      display: flex; align-items: center; gap: 0.75rem;
+      margin: 1.75rem 0 1rem; color: var(--pico-muted-color, #6c757d);
+      font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .day-divider::before, .day-divider::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.25; }
+
+    /* Post header row: author on the left, timestamp pinned to the
+       upper-right corner. */
+    .post-header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+    .post-timestamp { color: var(--pico-muted-color, #6c757d); font-size: 0.8rem; white-space: nowrap; }
+
+    .feed-stats {
+      background: var(--pico-code-background-color, #f4f4f5); border-radius: 0.5rem;
+      padding: 0.6rem 1rem; margin-bottom: 1rem; font-size: 0.9rem;
+    }
   </style>
 </head>
 <body hx-boost="true">
-  <header class="container">
+  <header class="container" id="top">
     <nav>
       <ul>
         <li><strong><a href="{% url 'feed' %}">feedwell</a></strong></li>
@@ -65,6 +85,13 @@
     {% block content %}{% endblock %}
   </main>
   <footer class="container" style="text-align: center;">
+    {% if user.is_authenticated %}
+      <p class="feed-stats">
+        <strong>{{ stats_count }}</strong> post{{ stats_count|pluralize }} from your connections in the last 24 hours
+        across <strong>{{ stats_platforms }}</strong> platform{{ stats_platforms|pluralize }}.
+      </p>
+    {% endif %}
+    <p><a href="#top">↑ Back to top</a></p>
     <small><em>"All social media clients suck. This one just sucks less."</em> —<a href="https://github.com/aclark4life" target="_blank" rel="noopener noreferrer">aclark4life</a>, 2026.</small>
   </footer>
 </body>

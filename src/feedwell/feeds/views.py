@@ -7,6 +7,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import timezone
+from django.utils.dateformat import format as format_date
 from django.views import View
 from django.views.generic import ListView
 from django.views.generic.edit import DeleteView, FormView
@@ -24,6 +26,25 @@ from .models import PLATFORM_CHOICES, Account, Post
 from .sync import sync_all_accounts, sync_my_posts
 
 
+def _annotate_day_headers(posts, last_day: str | None) -> None:
+    """Mark the first post of each new calendar day (in local time) with a
+    `day_header` display string, so the template can render a divider
+    there as you scroll past each day's posts.
+
+    `last_day` is an ISO date string (e.g. "2026-08-28") carried over from
+    the previous infinite-scroll page's last post via a query param, so a
+    day that happens to split across a page boundary doesn't get a
+    duplicate header, and a genuinely new day at the top of a page still
+    gets one.
+    """
+    previous_day = last_day
+    for post in posts:
+        local_dt = timezone.localtime(post.posted_at)
+        day = local_dt.date().isoformat()
+        post.day_header = format_date(local_dt, "l, F j, Y") if day != previous_day else ""
+        previous_day = day
+
+
 class InfiniteScrollListMixin:
     """For paginated feed views: on an htmx "load more" request (fired by the
     sentinel element at the bottom of the last post), render just the bare
@@ -31,11 +52,19 @@ class InfiniteScrollListMixin:
     """
 
     partial_template_name: str
+    context_object_name: str
 
     def get_template_names(self):
         if self.request.headers.get("HX-Request") == "true" and self.request.GET.get("page"):
             return [self.partial_template_name]
         return super().get_template_names()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        posts = context.get(self.context_object_name)
+        if posts is not None:
+            _annotate_day_headers(posts, self.request.GET.get("last_day"))
+        return context
 
 
 class FeedView(InfiniteScrollListMixin, ListView):
