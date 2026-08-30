@@ -14,6 +14,23 @@
     .message-warning { border-color: #ef6c00; background: #fff4e5; color: #663c00; }
     .message-success { border-color: #2e7d32; background: #eaf6ea; color: #173d1a; }
     .message-info { border-color: #1565c0; background: #e8f1fb; color: #0d3866; }
+
+    /* Per-platform accent: a colored left border + light background tint +
+       a small pill badge naming the platform, so a mixed feed is easy to
+       tell apart at a glance. */
+    article[class^="platform-"] { border-left: 6px solid transparent; padding-left: 0.85rem; }
+    .platform-label {
+      display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px;
+      font-size: 0.75rem; font-weight: 600; color: #fff !important;
+    }
+    .platform-mastodon { border-left-color: #6364ff; background: #6364ff14; }
+    .platform-mastodon .platform-label { background: #6364ff; }
+    .platform-bluesky { border-left-color: #1185fe; background: #1185fe14; }
+    .platform-bluesky .platform-label { background: #1185fe; }
+    .platform-x { border-left-color: #000000; background: #00000010; }
+    .platform-x .platform-label { background: #000000; }
+    .platform-facebook { border-left-color: #1877f2; background: #1877f214; }
+    .platform-facebook .platform-label { background: #1877f2; }
   </style>
 </head>
 <body hx-boost="true">

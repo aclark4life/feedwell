@@ -1,5 +1,6 @@
 {% for post in posts %}
   <article
+    class="platform-{{ post.platform }}"
     {% if forloop.last and page_obj.has_next %}
       hx-get="?page={{ page_obj.next_page_number }}"
       hx-trigger="revealed"
@@ -8,7 +9,7 @@
     {% endif %}
   >
     <strong>{{ post.author_handle|default:post.author_name }}</strong>
-    <small>({{ post.platform }})</small>
+    <small class="platform-label">({{ post.platform }})</small>
     <p>{{ post.content|safe }}</p>
     {% if post.url %}
       <p style="text-align: right;"><a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">Open on {{ post.get_platform_display }} ↗</a></p>
