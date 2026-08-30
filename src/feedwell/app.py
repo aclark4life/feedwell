@@ -59,6 +59,28 @@ def django(ctx: typer.Context) -> None:
     _safe_run(_run_django_command, ctx.args, debug=debug)
 
 
+@app.command(
+    "config-set",
+    help="Save a platform credential in feedwell.toml, e.g. "
+    "`feedwell config-set x.client_id abc123`.",
+)
+def config_set(ctx: typer.Context, key: str, value: str) -> None:
+    debug = ctx.obj["debug"]
+    _safe_run(_config_set, key, value, debug=debug)
+
+
+def _config_set(key: str, value: str, *, debug: bool) -> None:
+    from feedwell import config as feedwell_config
+
+    if "." not in key:
+        raise FriendlyError(
+            f"key must be in 'section.name' form, e.g. 'x.client_id' (got {key!r})."
+        )
+    section, name = key.split(".", 1)
+    path = feedwell_config.set_value(section, name, value)
+    print(f"feedwell: saved {key} to {path}")
+
+
 def _safe_run(func, *args, debug: bool, **kwargs) -> None:
     try:
         func(*args, debug=debug, **kwargs)
@@ -84,6 +106,10 @@ def _run_django_command(args: list[str], *, debug: bool) -> None:
 def _serve(*, debug: bool) -> None:
     _ensure_mongodb([], debug=debug)
 
+    from feedwell import config as feedwell_config
+
+    config_path = feedwell_config.ensure_config_file()
+
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "feedwell.settings")
     import django
 
@@ -102,10 +128,12 @@ def _serve(*, debug: bool) -> None:
     if not is_reloader_child:
         call_command("migrate", interactive=False, verbosity=verbosity)
         _ensure_default_admin()
+        print(f"feedwell: platform credentials can be set in {config_path}")
 
         url = f"http://{HOST}:{PORT}/"
         print(f"feedwell running at {url} (Ctrl+C to stop)")
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+
 
     call_command("runserver", f"{HOST}:{PORT}", use_reloader=True, verbosity=verbosity)
 

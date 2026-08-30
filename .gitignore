@@ -11,3 +11,6 @@ build/
 .coverage
 htmlcov/
 .DS_Store
+
+# Local credentials (created by `feedwell` on first run; holds X/etc secrets)
+feedwell.toml

@@ -7,6 +7,8 @@ connection with the MONGODB_URI environment variable.
 import os
 from pathlib import Path
 
+from feedwell import config as feedwell_config
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get(
@@ -21,8 +23,13 @@ ALLOWED_HOSTS = os.environ.get("FEEDWELL_ALLOWED_HOSTS", "127.0.0.1,localhost").
 # X (formerly Twitter) OAuth2 app credentials. Create an app at
 # https://developer.x.com/ and set its callback URL to
 # http://127.0.0.1:8000/connections/x/callback/ (or your real host).
-X_CLIENT_ID = os.environ.get("FEEDWELL_X_CLIENT_ID", "")
-X_CLIENT_SECRET = os.environ.get("FEEDWELL_X_CLIENT_SECRET", "")
+# Read from FEEDWELL_X_CLIENT_ID/SECRET env vars first, falling back to
+# ./feedwell.toml (created automatically by `feedwell` on first run) so
+# credentials can persist without exporting env vars every session.
+X_CLIENT_ID = os.environ.get("FEEDWELL_X_CLIENT_ID") or feedwell_config.get("x", "client_id")
+X_CLIENT_SECRET = os.environ.get("FEEDWELL_X_CLIENT_SECRET") or feedwell_config.get(
+    "x", "client_secret"
+)
 
 INSTALLED_APPS = [
     "feedwell.apps.MongoAdminConfig",

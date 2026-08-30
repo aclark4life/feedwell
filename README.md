@@ -45,12 +45,23 @@ as embedded documents instead of forced into rigid relational tables.
 Connecting X requires your own X API app (free developer signup at
 https://developer.x.com/). Create an app with OAuth 2.0 enabled, set its
 callback URL to `http://127.0.0.1:8000/connections/x/callback/` (adjust
-host/port to match how you run feedwell), then set:
+host/port to match how you run feedwell), then save the credentials with
+either of these (a running `feedwell` reads both, env vars take priority):
+
+```bash
+feedwell config-set x.client_id "your-client-id"
+feedwell config-set x.client_secret "your-client-secret"
+```
 
 ```bash
 export FEEDWELL_X_CLIENT_ID="your-client-id"
 export FEEDWELL_X_CLIENT_SECRET="your-client-secret"
 ```
+
+`feedwell config-set` writes to a `feedwell.toml` file in the current
+directory (created automatically the first time you run `feedwell`, with
+commented-out placeholders) so credentials persist across runs without
+exporting env vars every session. This file isn't tracked by git.
 
 Note: X's free API tier only allows posting and reading your own profile —
 reading any timeline (which is what feedwell needs for the unified feed)
