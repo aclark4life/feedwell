@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 
 from django.conf import settings
@@ -228,19 +229,34 @@ class XConnectCallbackView(LoginRequiredMixin, View):
             messages.error(request, str(exc))
             return redirect(reverse("connections"))
 
+        # The OAuth login succeeded even if X's profile lookup didn't (e.g.
+        # its pay-per-use billing enrollment requirement) -- persist the
+        # connection using the token itself as a stable placeholder ID, so
+        # a later sync can resolve the real profile once it's reachable,
+        # instead of discarding a perfectly valid login.
+        external_id = token.account_id or (
+            "pending:" + hashlib.sha256(token.access_token.encode()).hexdigest()[:24]
+        )
+        handle = token.handle or "(pending profile)"
+        display_name = token.display_name or handle
+
         Account.objects.update_or_create(
             owner=request.user,
             platform="x",
-            external_id=token.account_id,
+            external_id=external_id,
             defaults={
-                "handle": token.handle,
-                "display_name": token.display_name,
+                "handle": handle,
+                "display_name": display_name,
                 "avatar_url": token.avatar_url,
                 "access_token": token.access_token,
                 "metadata": {"refresh_token": token.refresh_token},
             },
         )
-        messages.success(request, f"Connected @{token.handle} on X.")
+        if token.profile_error:
+            messages.success(request, "Connected to X.")
+            messages.warning(request, token.profile_error)
+        else:
+            messages.success(request, f"Connected @{token.handle} on X.")
         return redirect(reverse("connections"))
 
 

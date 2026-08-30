@@ -73,6 +73,7 @@ class TokenResult:
     handle: str
     display_name: str
     avatar_url: str
+    profile_error: str = ""
 
 
 def exchange_code_for_token(code: str, redirect_uri: str, code_verifier: str) -> TokenResult:
@@ -102,34 +103,62 @@ def exchange_code_for_token(code: str, redirect_uri: str, code_verifier: str) ->
     access_token = tokens["access_token"]
     refresh_token = tokens.get("refresh_token", "")
 
-    me = _request(
-        "get",
-        f"{API_BASE}/users/me",
-        headers={"Authorization": f"Bearer {access_token}"},
-        params={"user.fields": "profile_image_url,name,username"},
-    )
-    if not me.ok:
-        if "client-not-enrolled" in me.text:
-            raise XAPIError(
-                "Logged in, but X now requires your developer Project to be "
-                "enrolled in its pay-per-use API plan before any API v2 call "
-                "(even looking up your own profile) will work. Add a payment "
-                "method in the X developer portal, then reconnect."
-            )
-        raise XAPIError(
-            f"Logged in but could not fetch your X account details "
-            f"({me.status_code}): {me.text[:300]}"
-        )
+    # The OAuth login itself succeeded -- that's real proof of a valid,
+    # connectable account. Don't throw the whole connection away just
+    # because the profile lookup fails (e.g. X's pay-per-use enrollment
+    # requirement blocking every API v2 call, including this one); persist
+    # what we have and let a later sync fill in the profile once it's
+    # reachable, via fetch_profile().
+    profile_error = ""
+    account_id = handle = display_name = avatar_url = ""
+    try:
+        user = fetch_profile(access_token)
+    except XAPIError as exc:
+        profile_error = str(exc)
+    else:
+        account_id = user.get("id", "")
+        handle = user.get("username", "")
+        display_name = user.get("name") or handle
+        avatar_url = user.get("profile_image_url", "")
 
-    user = me.json().get("data", {})
     return TokenResult(
         access_token=access_token,
         refresh_token=refresh_token,
-        account_id=user.get("id", ""),
-        handle=user.get("username", ""),
-        display_name=user.get("name") or user.get("username", ""),
-        avatar_url=user.get("profile_image_url", ""),
+        account_id=account_id,
+        handle=handle,
+        display_name=display_name,
+        avatar_url=avatar_url,
+        profile_error=profile_error,
     )
+
+
+def fetch_profile(access_token: str) -> dict:
+    """Look up the connected account's own profile (id, username, name, avatar).
+
+    Raises XAPIError with a friendly explanation on failure, notably for
+    X's "client-not-enrolled" pay-per-use billing requirement, which blocks
+    this endpoint just as much as timeline reads.
+    """
+    response = _request(
+        "get",
+        f"{API_BASE}/users/me",
+        headers={"Authorization": "Bearer " + access_token},
+        params={"user.fields": "profile_image_url,name,username"},
+    )
+    if not response.ok:
+        if "client-not-enrolled" in response.text:
+            raise XAPIError(
+                "X requires your developer Project to be enrolled in its "
+                "pay-per-use API plan before any API v2 call (even looking "
+                "up your own profile) will work. Add a payment method in "
+                "the X developer portal -- it'll pick up automatically on "
+                "the next refresh."
+            )
+        raise XAPIError(
+            f"Could not fetch your X account details "
+            f"({response.status_code}): {response.text[:300]}"
+        )
+    return response.json().get("data", {})
 
 
 def fetch_home_timeline(account) -> list[dict]:
@@ -144,7 +173,7 @@ def fetch_home_timeline(account) -> list[dict]:
     response = _request(
         "get",
         f"{API_BASE}/users/{account.external_id}/timelines/reverse_chronological",
-        headers={"Authorization": f"Bearer {account.access_token}"},
+        headers={"Authorization": "Bearer " + account.access_token},
         params={
             "max_results": 40,
             "tweet.fields": "created_at,public_metrics,author_id",

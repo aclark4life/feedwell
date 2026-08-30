@@ -67,6 +67,9 @@ def _sync_mastodon_account(account: Account) -> int:
 
 
 def _sync_x_account(account: Account) -> int:
+    if account.external_id.startswith("pending:"):
+        _resolve_x_profile(account)
+
     payload = x_adapter.fetch_home_timeline(account)
     tweets = payload.get("data") or []
     users_by_id = {u["id"]: u for u in (payload.get("includes", {}).get("users") or [])}
@@ -76,6 +79,24 @@ def _sync_x_account(account: Account) -> int:
         if _upsert_x_tweet(account, tweet, users_by_id, media_by_key):
             count += 1
     return count
+
+
+def _resolve_x_profile(account: Account) -> None:
+    """Fill in a placeholder X account's real identity once its profile
+    becomes reachable (e.g. after enabling billing enrollment).
+
+    Re-keying external_id from the "pending:<hash>" placeholder to the
+    real X user ID means any Posts already synced under the placeholder
+    stay attached (they're linked via account_id, not external_id), and
+    future connects of the same X account correctly recognize it as
+    already-connected instead of creating a duplicate.
+    """
+    user = x_adapter.fetch_profile(account.access_token)
+    account.external_id = user.get("id") or account.external_id
+    account.handle = user.get("username") or account.handle
+    account.display_name = user.get("name") or account.handle
+    account.avatar_url = user.get("profile_image_url") or account.avatar_url
+    account.save(update_fields=["external_id", "handle", "display_name", "avatar_url"])
 
 
 def _upsert_x_tweet(account: Account, tweet: dict, users_by_id: dict, media_by_key: dict) -> bool:

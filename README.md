@@ -67,8 +67,11 @@ Note: X now requires your developer Project to be enrolled in its
 pay-per-use API plan (a payment method on file) before *any* API v2 call
 works — including looking up your own profile right after connecting, not
 just reading timelines. Without that, you'll see a "client-not-enrolled"
-message from feedwell after the OAuth login step succeeds. Nothing to fix
-in feedwell for this; it's an X-side billing requirement.
+warning after the OAuth login step succeeds. This is an X-side billing
+requirement, nothing to fix in feedwell — the connection is still saved
+(shown as "(pending profile)" until resolved), and clicking Refresh after
+you enable billing automatically fills in your real profile and starts
+syncing your timeline, no need to reconnect.
 
 ## Status
 
