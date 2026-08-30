@@ -92,7 +92,9 @@ def exchange_code_for_token(code: str, redirect_uri: str, code_verifier: str) ->
         },
     )
     if not response.ok:
-        raise XAPIError(f"Could not complete login with X ({response.status_code}).")
+        raise XAPIError(
+            f"Could not complete login with X ({response.status_code}): {response.text[:300]}"
+        )
 
     tokens = response.json()
     access_token = tokens["access_token"]
@@ -105,7 +107,10 @@ def exchange_code_for_token(code: str, redirect_uri: str, code_verifier: str) ->
         params={"user.fields": "profile_image_url,name,username"},
     )
     if not me.ok:
-        raise XAPIError("Logged in but could not fetch your X account details.")
+        raise XAPIError(
+            f"Logged in but could not fetch your X account details "
+            f"({me.status_code}): {me.text[:300]}"
+        )
 
     user = me.json().get("data", {})
     return TokenResult(
