@@ -78,4 +78,7 @@ syncing your timeline, no need to reconnect.
 Early: `Account`/`Post` models, Django admin, and a unified-feed view.
 Mastodon is fully wired up (OAuth2, home timeline sync). X's connect flow
 is wired up too, but reading its timeline requires a paid X API tier.
-Facebook, Bluesky, and RSS aren't connected yet.
+Bluesky and RSS aren't connected yet. Facebook isn't connectable at all:
+Meta removed the ability for third-party apps to read a personal News
+Feed back in 2018 and it's never come back, so clicking "Connect
+Facebook" just explains that instead of pretending to work.

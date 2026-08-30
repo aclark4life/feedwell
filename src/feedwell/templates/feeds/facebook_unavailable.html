@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Connect Facebook - feedwell{% endblock %}
+{% block content %}
+  <h1>Connect Facebook</h1>
+  <article class="message message-warning">
+    <p>
+      Reading your personal Facebook News Feed isn't possible through
+      Facebook's API anymore, for any app. Meta removed that permission
+      for third-party apps in 2018 and it has never come back &mdash;
+      this isn't a feedwell limitation or something an App Review can
+      unlock.
+    </p>
+    <p>
+      What's still technically possible is reading posts from Facebook
+      <strong>Pages you manage</strong> (not your personal feed), which
+      requires Business Verification and App Review with Meta. That's
+      not wired up yet. If you manage a Page and want that instead,
+      let us know and we'll build it.
+    </p>
+  </article>
+  <p><a href="{% url 'connections' %}">Back to connections</a></p>
+{% endblock %}

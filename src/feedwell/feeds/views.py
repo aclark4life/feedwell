@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views import View
 from django.views.generic import ListView
@@ -92,6 +92,8 @@ class ConnectAccountView(LoginRequiredMixin, FormView):
             return redirect(reverse("mastodon_connect_start"))
         if self.platform_key == "x":
             return redirect(reverse("x_connect_start"))
+        if self.platform_key == "facebook":
+            return render(request, "feeds/facebook_unavailable.html", {})
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
