@@ -5,12 +5,14 @@ but requires PKCE (a code_verifier/code_challenge pair) as part of its
 OAuth2 authorization code flow. See
 https://developer.x.com/en/docs/authentication/oauth-2-0/authorization-code
 
-Reading a home timeline requires X's paid API tiers (Basic and above) --
-the free tier only allows posting and looking up your own profile. This
-adapter still implements the full connect + fetch flow so a paid key can
-be dropped in later without further code changes; on the free tier,
-fetch_home_timeline will raise a friendly XAPIError explaining why no
-posts came back.
+Reading a home timeline (and even looking up your own profile) requires
+X's developer Project to be enrolled in its pay-per-use API plan (a
+payment method on file) -- there's no longer a truly free tier for any
+API v2 call. This adapter still implements the full connect + fetch flow
+so it works the moment a Project is enrolled, without further code
+changes; until then, both the connect flow and fetch_home_timeline raise
+a friendly XAPIError explaining why (X returns a "client-not-enrolled"
+error in that case).
 """
 
 from __future__ import annotations
@@ -107,6 +109,13 @@ def exchange_code_for_token(code: str, redirect_uri: str, code_verifier: str) ->
         params={"user.fields": "profile_image_url,name,username"},
     )
     if not me.ok:
+        if "client-not-enrolled" in me.text:
+            raise XAPIError(
+                "Logged in, but X now requires your developer Project to be "
+                "enrolled in its pay-per-use API plan before any API v2 call "
+                "(even looking up your own profile) will work. Add a payment "
+                "method in the X developer portal, then reconnect."
+            )
         raise XAPIError(
             f"Logged in but could not fetch your X account details "
             f"({me.status_code}): {me.text[:300]}"
@@ -126,10 +135,11 @@ def exchange_code_for_token(code: str, redirect_uri: str, code_verifier: str) ->
 def fetch_home_timeline(account) -> list[dict]:
     """Fetch the account's home timeline.
 
-    Note: X's free API tier does not permit reading any timeline -- this
-    will return a 403/401 and raise XAPIError until the connected app has
-    at least the Basic paid tier. Kept as a real call (not a stub) so
-    upgrading later just works without further code changes.
+    Note: requires the connected X developer Project to be enrolled in
+    X's pay-per-use API plan -- this will return a 403 with a
+    "client-not-enrolled" error and raise a friendly XAPIError until
+    then. Kept as a real call (not a stub) so it works immediately
+    once billing is enabled, with no further code changes.
     """
     response = _request(
         "get",
@@ -143,8 +153,14 @@ def fetch_home_timeline(account) -> list[dict]:
         },
     )
     if not response.ok:
+        if "client-not-enrolled" in response.text:
+            raise XAPIError(
+                "Could not fetch your X feed: your developer Project isn't "
+                "enrolled in X's pay-per-use API plan. Add a payment method "
+                "in the X developer portal to enable timeline reads."
+            )
         raise XAPIError(
             f"Could not fetch your X feed ({response.status_code}). "
-            "Reading timelines requires a paid X API tier (Basic or higher)."
+            "Reading timelines requires a paid X API plan."
         )
     return response.json()

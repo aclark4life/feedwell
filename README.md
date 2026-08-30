@@ -63,11 +63,12 @@ directory (created automatically the first time you run `feedwell`, with
 commented-out placeholders) so credentials persist across runs without
 exporting env vars every session. This file isn't tracked by git.
 
-Note: X's free API tier only allows posting and reading your own profile —
-reading any timeline (which is what feedwell needs for the unified feed)
-requires a paid tier (Basic or higher). You can still connect your account
-on the free tier; refresh will just report that no posts could be fetched
-until you upgrade.
+Note: X now requires your developer Project to be enrolled in its
+pay-per-use API plan (a payment method on file) before *any* API v2 call
+works — including looking up your own profile right after connecting, not
+just reading timelines. Without that, you'll see a "client-not-enrolled"
+message from feedwell after the OAuth login step succeeds. Nothing to fix
+in feedwell for this; it's an X-side billing requirement.
 
 ## Status
 
