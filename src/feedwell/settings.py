@@ -79,6 +79,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "feedwell.feeds.context_processors.connection_stats",
+                "feedwell.feeds.context_processors.auth_urls",
             ],
         },
     },

@@ -83,6 +83,18 @@ Then run:
 python manage.py migrate
 ```
 
+The feeds templates need a login/logout link, but they don't assume any
+particular auth url scheme (Django's built-in `django.contrib.auth.urls`,
+django-allauth, or something custom). Add the `auth_urls` context processor
+to your `TEMPLATES` `OPTIONS["context_processors"]` so those links resolve
+correctly using your project's `LOGIN_URL`/`LOGOUT_URL` settings:
+
+```python
+TEMPLATES[0]["OPTIONS"]["context_processors"] += [
+    "feedwell.feeds.context_processors.auth_urls",
+]
+```
+
 Optional platform settings for enabling those connect flows in the consuming
 project:
 

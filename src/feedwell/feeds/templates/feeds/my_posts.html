@@ -30,6 +30,6 @@
       </p>
     {% endif %}
   {% else %}
-    <p><a href="{% url 'login' %}">Log in</a> to see your posts.</p>
+    <p><a href="{{ login_url }}">Log in</a> to see your posts.</p>
   {% endif %}
 {% endblock %}

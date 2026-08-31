@@ -22,6 +22,6 @@
       <p>No posts yet. <a href="{% url 'connections' %}">Connect an account</a> to get started.</p>
     {% endif %}
   {% else %}
-    <p><a href="{% url 'login' %}">Log in</a> to see your feed.</p>
+    <p><a href="{{ login_url }}">Log in</a> to see your feed.</p>
   {% endif %}
 {% endblock %}

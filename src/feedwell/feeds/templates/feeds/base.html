@@ -65,13 +65,13 @@
           <li><a href="{% url 'connections' %}">Connections</a></li>
           <li>{{ user }}</li>
           <li>
-            <form method="post" action="{% url 'logout' %}">
+            <form method="post" action="{{ logout_url }}">
               {% csrf_token %}
               <button type="submit" class="secondary">Log out</button>
             </form>
           </li>
         {% else %}
-          <li><a href="{% url 'login' %}">Log in</a></li>
+          <li><a href="{{ login_url }}">Log in</a></li>
         {% endif %}
       </ul>
     </nav>
