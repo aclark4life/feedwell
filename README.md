@@ -40,6 +40,62 @@ Built with Django and [django-mongodb-backend](https://www.mongodb.com/docs/lang
 so posts and their platform-specific metadata (metrics, media) can be stored
 as embedded documents instead of forced into rigid relational tables.
 
+## Using as a reusable Django app
+
+Another Django project can also use feedwell's reusable feeds app instead of
+the standalone `feedwell` CLI layer:
+
+```bash
+pip install feedwell
+```
+
+Requirements in the consuming project:
+
+- `django_mongodb_backend` in `INSTALLED_APPS`
+- `DATABASES["default"]["ENGINE"] = "django_mongodb_backend"`
+- MongoDB as the backing database
+- `AUTH_USER_MODEL` configured (any user model works; `feedwell.feeds.models.Account`
+  uses `ForeignKey(settings.AUTH_USER_MODEL, ...)`)
+- A MongoDB-compatible `DEFAULT_AUTO_FIELD`, for example
+  `django_mongodb_backend.fields.ObjectIdAutoField` (matching
+  `feedwell.feeds.apps.FeedsConfig.default_auto_field`)
+
+Minimal setup:
+
+```python
+INSTALLED_APPS += [
+    "django_mongodb_backend",
+    "feedwell.feeds",
+]
+```
+
+```python
+from django.urls import include, path
+
+urlpatterns = [
+    path("", include("feedwell.feeds.urls")),
+]
+```
+
+Then run:
+
+```bash
+python manage.py migrate
+```
+
+Optional platform settings for enabling those connect flows in the consuming
+project:
+
+```python
+X_CLIENT_ID = "..."
+X_CLIENT_SECRET = "..."
+FACEBOOK_CLIENT_ID = "..."
+FACEBOOK_CLIENT_SECRET = "..."
+```
+
+If those settings are omitted, X and Facebook simply remain unavailable while
+Mastodon/Bluesky and the rest of the app continue to work.
+
 ## Connecting X
 
 Connecting X requires your own X API app (free developer signup at

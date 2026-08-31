@@ -55,7 +55,7 @@ def generate_pkce_pair() -> tuple[str, str]:
 def build_authorize_url(redirect_uri: str, state: str, code_challenge: str) -> str:
     params = {
         "response_type": "code",
-        "client_id": settings.X_CLIENT_ID,
+        "client_id": getattr(settings, "X_CLIENT_ID", ""),
         "redirect_uri": redirect_uri,
         "scope": SCOPES,
         "state": state,
@@ -77,7 +77,9 @@ class TokenResult:
 
 
 def exchange_code_for_token(code: str, redirect_uri: str, code_verifier: str) -> TokenResult:
-    if not settings.X_CLIENT_ID:
+    client_id = getattr(settings, "X_CLIENT_ID", "")
+    client_secret = getattr(settings, "X_CLIENT_SECRET", "")
+    if not client_id:
         raise XAPIError(
             "No X API credentials configured. Set FEEDWELL_X_CLIENT_ID and "
             "FEEDWELL_X_CLIENT_SECRET to connect an X account."
@@ -86,7 +88,7 @@ def exchange_code_for_token(code: str, redirect_uri: str, code_verifier: str) ->
     response = _request(
         "post",
         TOKEN_URL,
-        auth=(settings.X_CLIENT_ID, settings.X_CLIENT_SECRET),
+        auth=(client_id, client_secret),
         data={
             "grant_type": "authorization_code",
             "code": code,

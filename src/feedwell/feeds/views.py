@@ -306,7 +306,7 @@ class XConnectStartView(LoginRequiredMixin, View):
     """Step 1 of the X connect flow: kick off OAuth2 PKCE authorization."""
 
     def get(self, request, *args, **kwargs):
-        if not settings.X_CLIENT_ID:
+        if not getattr(settings, "X_CLIENT_ID", ""):
             messages.error(
                 request,
                 "X isn't configured yet. Set FEEDWELL_X_CLIENT_ID and "
@@ -384,7 +384,7 @@ class FacebookConnectStartView(LoginRequiredMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        if not settings.FACEBOOK_CLIENT_ID:
+        if not getattr(settings, "FACEBOOK_CLIENT_ID", ""):
             messages.error(
                 request,
                 "Facebook isn't configured yet. Set FEEDWELL_FACEBOOK_CLIENT_ID and "

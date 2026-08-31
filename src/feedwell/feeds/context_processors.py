@@ -14,7 +14,7 @@ def connection_stats(request):
     many posts from the signed-in user's connections (not their own posts)
     showed up in the last 24 hours, and across how many platforms.
 
-    Rendered in the shared footer (base.html) so it shows up on every
+    Rendered in the shared footer (feeds/base.html) so it shows up on every
     page, not just the home feed.
     """
     if not request.user.is_authenticated:

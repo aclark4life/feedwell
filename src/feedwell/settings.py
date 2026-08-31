@@ -10,6 +10,7 @@ from pathlib import Path
 from feedwell import config as feedwell_config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 SECRET_KEY = os.environ.get(
     "FEEDWELL_SECRET_KEY",
@@ -70,7 +71,7 @@ ROOT_URLCONF = "feedwell.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "feedwell" / "templates"],
+        "DIRS": [PROJECT_TEMPLATES_DIR],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -113,7 +114,6 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-STATICFILES_DIRS = [BASE_DIR / "feedwell" / "static"]
 
 DEFAULT_AUTO_FIELD = "django_mongodb_backend.fields.ObjectIdAutoField"
 

@@ -42,7 +42,7 @@ def _request(method: str, url: str, **kwargs) -> requests.Response:
 
 def build_authorize_url(redirect_uri: str, state: str) -> str:
     params = {
-        "client_id": settings.FACEBOOK_CLIENT_ID,
+        "client_id": getattr(settings, "FACEBOOK_CLIENT_ID", ""),
         "redirect_uri": redirect_uri,
         "scope": SCOPES,
         "state": state,
@@ -61,7 +61,9 @@ class TokenResult:
 
 
 def exchange_code_for_token(code: str, redirect_uri: str) -> TokenResult:
-    if not settings.FACEBOOK_CLIENT_ID:
+    client_id = getattr(settings, "FACEBOOK_CLIENT_ID", "")
+    client_secret = getattr(settings, "FACEBOOK_CLIENT_SECRET", "")
+    if not client_id:
         raise FacebookAPIError(
             "No Facebook API credentials configured. Set FEEDWELL_FACEBOOK_CLIENT_ID "
             "and FEEDWELL_FACEBOOK_CLIENT_SECRET to connect a Facebook account."
@@ -71,8 +73,8 @@ def exchange_code_for_token(code: str, redirect_uri: str) -> TokenResult:
         "get",
         TOKEN_URL,
         params={
-            "client_id": settings.FACEBOOK_CLIENT_ID,
-            "client_secret": settings.FACEBOOK_CLIENT_SECRET,
+            "client_id": client_id,
+            "client_secret": client_secret,
             "redirect_uri": redirect_uri,
             "code": code,
         },
