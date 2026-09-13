@@ -10,7 +10,8 @@
     body { display: flex; flex-direction: column; min-height: 100vh; }
     html { scroll-behavior: smooth; }
     main { flex: 1; }
-    .message { padding: 0.75rem 1rem; margin-bottom: 1rem; border-left: 4px solid; }
+    .message { padding: 0.75rem 1rem; margin-bottom: 1rem; border-left: 4px solid; transition: opacity 0.5s ease, margin 0.5s ease, padding 0.5s ease, max-height 0.5s ease; overflow: hidden; max-height: 10rem; }
+    .message.message-hide { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: 0; border-width: 0; }
     .message-error { border-color: #c62828; background: #fdecea; color: #611a15; }
     .message-warning { border-color: #ef6c00; background: #fff4e5; color: #663c00; }
     .message-success { border-color: #2e7d32; background: #eaf6ea; color: #173d1a; }
@@ -79,11 +80,20 @@
   <main class="container">
     {% if messages %}
       {% for message in messages %}
-        <article class="message message-{{ message.tags }}">{{ message }}</article>
+        <article class="message message-{{ message.tags }}" data-auto-dismiss>{{ message }}</article>
       {% endfor %}
     {% endif %}
     {% block content %}{% endblock %}
   </main>
+  <script>
+    // Status messages fade out and remove themselves after a few seconds.
+    document.querySelectorAll('[data-auto-dismiss]').forEach(function (el) {
+      setTimeout(function () {
+        el.classList.add('message-hide');
+        el.addEventListener('transitionend', function () { el.remove(); }, { once: true });
+      }, 5000);
+    });
+  </script>
   <footer class="container" style="text-align: center;">
     {% if user.is_authenticated %}
       <p class="feed-stats">
