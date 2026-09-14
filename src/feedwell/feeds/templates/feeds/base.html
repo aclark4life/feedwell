@@ -57,9 +57,26 @@
       background: var(--pico-code-background-color, #f4f4f5); border-radius: 0.5rem;
       padding: 0.6rem 1rem; margin-bottom: 1rem; font-size: 0.9rem;
     }
+
+    /* Floating "back to top" button: fixed in the bottom-right corner so
+       it's reachable without scrolling all the way down to the footer
+       link. Hidden until you've scrolled past one viewport, then faded
+       in via #back-to-top.is-visible (toggled by the script below). */
+    #back-to-top {
+      position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+      width: 2.75rem; height: 2.75rem; border-radius: 50%;
+      background: var(--pico-primary, #1a5fb4); color: #fff !important;
+      text-decoration: none; font-size: 1.25rem; line-height: 1;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      opacity: 0; pointer-events: none; transform: translateY(0.5rem);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    #back-to-top.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
   </style>
 </head>
 <body hx-boost="true">
+  <a id="back-to-top" href="#top" aria-label="Back to top">↑</a>
   <header class="container" id="top">
     <nav>
       <ul>
@@ -98,6 +115,18 @@
         el.addEventListener('transitionend', function () { el.remove(); }, { once: true });
       }, 5000);
     });
+
+    // Toggle the floating "back to top" button once you've scrolled past
+    // one viewport height, so it's usable without hunting for the footer
+    // link at the very bottom of a long feed.
+    (function () {
+      var backToTop = document.getElementById('back-to-top');
+      var toggle = function () {
+        backToTop.classList.toggle('is-visible', window.scrollY > window.innerHeight);
+      };
+      window.addEventListener('scroll', toggle, { passive: true });
+      toggle();
+    })();
   </script>
   <footer class="container" style="text-align: center;">
     {% if user.is_authenticated %}
