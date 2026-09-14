@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "feedwell"
-version = "0.2.2a1"
+version = "0.2.3a1"
 description = "All social media clients suck. This one just sucks less."
 readme = "README.md"
 requires-python = ">=3.12"

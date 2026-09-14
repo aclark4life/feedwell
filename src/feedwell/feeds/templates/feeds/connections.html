@@ -10,7 +10,14 @@
         <h3>{{ platform.label }}</h3>
         {% for account in platform.accounts %}
           <div class="grid">
-            <span>Connected as {{ account.display_name|default:account.handle }}</span>
+            <span>
+              Connected as
+              {% if account.profile_url %}
+                <a href="{{ account.profile_url }}" target="_blank" rel="noopener noreferrer">{{ account.display_name|default:account.handle }}</a>
+              {% else %}
+                {{ account.display_name|default:account.handle }}
+              {% endif %}
+            </span>
             <form method="post" action="{% url 'disconnect_account' account.pk %}">
               {% csrf_token %}
               <button type="submit" class="secondary outline">Disconnect</button>

@@ -12,12 +12,30 @@
     {% endif %}
   >
     <div class="post-header">
-      <span><strong>{{ post.author_handle|default:post.author_name }}</strong> <small class="platform-label">({{ post.platform }})</small></span>
+      <span>
+        {% if post.author_profile_url %}
+          <strong><a href="{{ post.author_profile_url }}" target="_blank" rel="noopener noreferrer">{{ post.author_handle|default:post.author_name }}</a></strong>
+        {% else %}
+          <strong>{{ post.author_handle|default:post.author_name }}</strong>
+        {% endif %}
+        <small class="platform-label">{% spaceless %}(
+          {% if post.author_federated_profile_url %}
+            <a href="{{ post.author_federated_profile_url }}" target="_blank" rel="noopener noreferrer">{{ post.account.connection_label }}</a>
+          {% else %}
+            {{ post.account.connection_label }}
+          {% endif %}
+        ){% endspaceless %}</small>
+      </span>
       <time class="post-timestamp" datetime="{{ post.posted_at|date:'c' }}" title="{{ post.posted_at }}">{{ post.posted_at|date:"M j, g:i A" }}</time>
     </div>
     <p>{{ post.content|safe }}</p>
     {% if post.url %}
-      <p style="text-align: right;"><a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">Open on {{ post.get_platform_display }} ↗</a></p>
+      <p style="text-align: right;">
+        <a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">Open on {{ post.link_label }} ↗</a>
+        {% if post.federated_url %}
+          &middot; <a href="{{ post.federated_url }}" target="_blank" rel="noopener noreferrer">View on {{ post.account.metadata.instance_domain }} ↗</a>
+        {% endif %}
+      </p>
     {% endif %}
   </article>
 {% endfor %}

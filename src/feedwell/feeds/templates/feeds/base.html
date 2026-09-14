@@ -25,6 +25,11 @@
       display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px;
       font-size: 0.75rem; font-weight: 600; color: #fff !important;
     }
+    /* Pico sets its own explicit link color on <a>, which otherwise wins
+       over the badge's inherited white and disappears into the saturated
+       background. Force it back to white, with an underline so the link
+       is still discoverable without relying on color alone. */
+    .platform-label a { color: #fff !important; text-decoration: underline; }
     .platform-mastodon { border-left-color: #6364ff; background: #6364ff14; }
     .platform-mastodon .platform-label { background: #6364ff; }
     .platform-bluesky { border-left-color: #1185fe; background: #1185fe14; }
