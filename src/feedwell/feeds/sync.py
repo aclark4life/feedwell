@@ -26,10 +26,11 @@ class SyncError(Exception):
     continue syncing other accounts or surface the error."""
 
 
-def sync_account(account: Account) -> int:
+def sync_account(account: Account) -> tuple[int, bool]:
     """Fetch and upsert recent posts for one connected account.
 
-    Returns the number of posts created or updated.
+    Returns (number of posts created or updated, whether a catch-up is still
+    in progress and another sync should continue it -- see HOME_BACKFILL).
     """
     if account.platform == "mastodon":
         return _sync_mastodon_account(account)
@@ -41,22 +42,32 @@ def sync_account(account: Account) -> int:
         # Facebook Login is connect-only (see adapters/facebook.py): there's
         # no API for reading a personal News Feed, so there's nothing to
         # sync, ever, for any account on this platform.
-        return 0
+        return 0, False
     raise SyncError(f"No sync support yet for {account.get_platform_display()}.")
 
 
-def sync_all_accounts(owner) -> tuple[int, list[str]]:
+def sync_all_accounts(owner, catching_up: bool = False) -> tuple[int, list[str], bool]:
     """Sync every account belonging to `owner`.
 
-    Returns (total_posts_synced, list_of_error_messages) so the view can
-    show a partial success (e.g. Mastodon synced fine, X isn't wired up yet)
-    instead of failing the whole refresh over one broken account.
+    Returns (total_posts_synced, list_of_error_messages, more_to_catch_up)
+    so the view can show a partial success (e.g. Mastodon synced fine, X
+    isn't wired up yet) instead of failing the whole refresh over one broken
+    account, and know whether to continue a catch-up with another request.
+
+    With catching_up=True (those follow-up requests), only accounts with a
+    backfill in progress are synced; the rest were just synced moments ago,
+    and re-polling them would cost X API reads for nothing.
     """
     total = 0
     errors: list[str] = []
+    more = False
     for account in Account.objects.filter(owner=owner):
+        if catching_up and HOME_BACKFILL not in account.metadata:
+            continue
         try:
-            total += sync_account(account)
+            count, account_more = sync_account(account)
+            total += count
+            more = more or account_more
         except SyncError as exc:
             errors.append(str(exc))
         except MastodonAPIError as exc:
@@ -73,25 +84,74 @@ def sync_all_accounts(owner) -> tuple[int, list[str]]:
             if account.external_id.startswith("pending:"):
                 continue
             errors.append(f"{account}: {exc}")
-    return total, errors
+    return total, errors, more
 
 
-def _sync_mastodon_account(account: Account) -> int:
-    statuses = mastodon.fetch_statuses(account)
+# Home-timeline sync state, kept in Account.metadata (see
+# fetch_statuses/fetch_timeline/fetch_home_timeline):
+#
+# - The "since" cursor is how far up the timeline we're fully synced; the
+#   next Refresh pages back down to exactly there.
+# - A catch-up too big for one request leaves a HOME_BACKFILL entry: where
+#   to resume paging down from, plus the newest point of this catch-up
+#   ("top"). The since cursor only moves up to "top" once the backfill
+#   reaches it, so an interrupted catch-up resumes instead of leaving a gap.
+#
+# Both only change after every post in the batch is upserted, so a failed
+# sync just retries.
+HOME_SINCE_ID = "home_since_id"  # Mastodon, X: newest status/tweet id synced
+HOME_SINCE = "home_since"  # Bluesky: ISO feed time of the newest item synced
+HOME_BACKFILL = "home_backfill"  # {"resume": max_id or cursor, "top": since value}
+
+
+def _advance(account: Account, since_key: str, top: str | None, resume: str | None) -> None:
+    """Record a sync's progress: either a pending backfill, or (when caught
+    up) move the since cursor to the top of what was fetched."""
+    before = dict(account.metadata)
+    if resume:
+        account.metadata[HOME_BACKFILL] = {"resume": resume, "top": top}
+    else:
+        account.metadata.pop(HOME_BACKFILL, None)
+        if top:
+            account.metadata[since_key] = top
+    if account.metadata != before:
+        account.save(update_fields=["metadata"])
+
+
+def _sync_mastodon_account(account: Account) -> tuple[int, bool]:
+    backfill = account.metadata.get(HOME_BACKFILL)
+    statuses, resume = mastodon.fetch_statuses(
+        account,
+        since_id=account.metadata.get(HOME_SINCE_ID),
+        max_id=backfill["resume"] if backfill else None,
+    )
     count = 0
     for status in statuses:
         if _upsert_mastodon_status(account, status):
             count += 1
-    return count
+    top = backfill["top"] if backfill else (statuses[0]["id"] if statuses else None)
+    _advance(account, HOME_SINCE_ID, top, resume)
+    return count, resume is not None
 
 
-def _sync_bluesky_account(account: Account) -> int:
-    items = bluesky.fetch_timeline(account)
+def _sync_bluesky_account(account: Account) -> tuple[int, bool]:
+    backfill = account.metadata.get(HOME_BACKFILL)
+    items, resume = bluesky.fetch_timeline(
+        account,
+        since=_parse_datetime(account.metadata.get(HOME_SINCE)),
+        cursor=backfill["resume"] if backfill else None,
+    )
     count = 0
     for item in items:
         if _upsert_bluesky_post(account, item):
             count += 1
-    return count
+    if backfill:
+        top = backfill["top"]
+    else:
+        times = [t for t in map(bluesky.feed_item_time, items) if t]
+        top = max(times).isoformat() if times else None
+    _advance(account, HOME_SINCE, top, resume)
+    return count, resume is not None
 
 
 def sync_my_posts(owner) -> tuple[int, list[str]]:
@@ -123,11 +183,11 @@ def sync_my_posts(owner) -> tuple[int, list[str]]:
     return total, errors
 
 
-def _sync_x_account(account: Account) -> int:
+def _sync_x_account(account: Account) -> tuple[int, bool]:
     if account.external_id.startswith("pending:"):
         _resolve_x_profile(account)
 
-    payload = x_adapter.fetch_home_timeline(account)
+    payload = x_adapter.fetch_home_timeline(account, since_id=account.metadata.get(HOME_SINCE_ID))
     tweets = payload.get("data") or []
     users_by_id = {u["id"]: u for u in (payload.get("includes", {}).get("users") or [])}
     media_by_key = {m["media_key"]: m for m in (payload.get("includes", {}).get("media") or [])}
@@ -135,7 +195,8 @@ def _sync_x_account(account: Account) -> int:
     for tweet in tweets:
         if _upsert_x_tweet(account, tweet, users_by_id, media_by_key):
             count += 1
-    return count
+    _advance(account, HOME_SINCE_ID, (payload.get("meta") or {}).get("newest_id"), None)
+    return count, False
 
 
 def _resolve_x_profile(account: Account) -> None:

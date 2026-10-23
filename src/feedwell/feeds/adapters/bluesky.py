@@ -18,6 +18,7 @@ See https://docs.bsky.app for the full API reference.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 import requests
 
@@ -25,6 +26,7 @@ REQUEST_TIMEOUT = 10
 API_BASE = "https://bsky.social/xrpc"
 POSTS_PER_PAGE = 40  # Bluesky's default/max "limit" per request
 MAX_OWN_POSTS = 200  # how far back "My posts" pages via cursor per sync
+CATCH_UP_CHUNK = 200  # home-timeline posts per catch-up request (see fetch_timeline)
 
 
 class BlueskyAPIError(Exception):
@@ -105,23 +107,62 @@ def _authenticate(account) -> tuple[str, str]:
     return session.access_token, account.external_id or session.did
 
 
-def fetch_timeline(account) -> list[dict]:
+def feed_item_time(item: dict) -> datetime | None:
+    """When a timeline item entered the feed: the repost time for reposts,
+    otherwise when the post was indexed. This is what getTimeline orders by,
+    so it's the right thing to page back to."""
+    value = (item.get("reason") or {}).get("indexedAt") or (item.get("post") or {}).get("indexedAt")
+    try:
+        return datetime.fromisoformat(value) if value else None
+    except ValueError:
+        return None
+
+
+def fetch_timeline(
+    account, since: datetime | None = None, cursor: str | None = None
+) -> tuple[list[dict], str | None]:
     """Fetch the account's home timeline: posts from accounts they follow,
     which is what feedwell's unified "feed" is meant to show.
 
-    Returns raw feed-view items (each with a "post" and optional "reason"
-    for reposts); normalization into Post rows happens in the sync layer.
+    Without since (first sync) this is just the newest page. With it, pages
+    backward via cursor until reaching items at or before since, so a
+    Refresh after a long gap catches up. getTimeline has no since_id
+    equivalent, and stopping at the first already-stored post would trip on
+    reposts of old posts, so this goes by feed time instead. Stops after
+    CATCH_UP_CHUNK items and returns the cursor to resume from; the sync
+    layer carries on from there in a follow-up request.
+
+    Returns (raw feed-view items, each with a "post" and optional "reason"
+    for reposts; resume cursor or None once caught up). Normalization into
+    Post rows happens in the sync layer.
     """
     access_token, _ = _authenticate(account)
-    response = _request(
-        "get",
-        f"{API_BASE}/app.bsky.feed.getTimeline",
-        headers={"Authorization": "Bearer " + access_token},
-        params={"limit": POSTS_PER_PAGE},
-    )
-    if not response.ok:
-        raise BlueskyAPIError(f"Could not fetch your Bluesky feed ({response.status_code}).")
-    return response.json().get("feed", [])
+
+    items: list[dict] = []
+    while True:
+        params = {"limit": POSTS_PER_PAGE}
+        if cursor:
+            params["cursor"] = cursor
+        response = _request(
+            "get",
+            f"{API_BASE}/app.bsky.feed.getTimeline",
+            headers={"Authorization": "Bearer " + access_token},
+            params=params,
+        )
+        if not response.ok:
+            raise BlueskyAPIError(f"Could not fetch your Bluesky feed ({response.status_code}).")
+        payload = response.json()
+        batch = payload.get("feed") or []
+        if since is None:
+            return batch, None
+
+        new = [item for item in batch if (feed_item_time(item) or since) > since]
+        items.extend(new)
+        cursor = payload.get("cursor")
+        if not batch or len(new) < len(batch) or not cursor:
+            return items, None
+        if len(items) >= CATCH_UP_CHUNK:
+            return items, cursor
 
 
 def fetch_own_posts(account) -> list[dict]:

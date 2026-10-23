@@ -27,6 +27,7 @@ REQUEST_TIMEOUT = 10
 SCOPES = "read"
 STATUSES_PER_PAGE = 40  # Mastodon's max allowed "limit" per request
 MAX_OWN_STATUSES = 200  # how far back "My posts" pages via max_id per sync
+CATCH_UP_CHUNK = 200  # home-timeline statuses per catch-up request (see fetch_statuses)
 
 
 class MastodonAPIError(Exception):
@@ -186,26 +187,50 @@ def fetch_own_statuses(account) -> list[dict]:
     return statuses
 
 
-def fetch_statuses(account) -> list[dict]:
+def fetch_statuses(
+    account, since_id: str | None = None, max_id: str | None = None
+) -> tuple[list[dict], str | None]:
     """Fetch the account's home timeline: posts from people they follow on
     Mastodon, which is what feedwell's unified "feed" is meant to show
     (not just the account's own posts).
 
-    Returns raw Mastodon API status dicts; normalization into Post rows
-    happens in the sync layer so all adapters share one upsert path.
+    Without since_id (first sync) this is just the newest page. With it,
+    pages backward via max_id through everything newer than since_id, so a
+    Refresh after a long gap catches up instead of only grabbing the newest
+    40 and silently skipping the rest. That can be a lot of requests, so it
+    stops after CATCH_UP_CHUNK statuses and returns the max_id to resume
+    from; the sync layer carries on from there in a follow-up request.
+
+    Returns (raw status dicts newest first, resume max_id or None once
+    caught up). Normalization into Post rows happens in the sync layer so
+    all adapters share one upsert path. Note Mastodon only keeps ~800
+    statuses in a home timeline, so a catch-up never goes further back.
     """
     instance_domain = account.metadata.get("instance_domain")
     if not instance_domain:
         raise MastodonAPIError("This account is missing its Mastodon instance domain.")
 
-    response = _request(
-        "get",
-        f"https://{instance_domain}/api/v1/timelines/home",
-        headers={"Authorization": "Bearer " + account.access_token},
-        params={"limit": 40},
-    )
-    if not response.ok:
-        raise MastodonAPIError(
-            f"Could not fetch your feed from {instance_domain} ({response.status_code})."
+    statuses: list[dict] = []
+    while True:
+        params = {"limit": STATUSES_PER_PAGE}
+        if since_id:
+            params["since_id"] = since_id
+        if max_id:
+            params["max_id"] = max_id
+        response = _request(
+            "get",
+            f"https://{instance_domain}/api/v1/timelines/home",
+            headers={"Authorization": "Bearer " + account.access_token},
+            params=params,
         )
-    return response.json()
+        if not response.ok:
+            raise MastodonAPIError(
+                f"Could not fetch your feed from {instance_domain} ({response.status_code})."
+            )
+        batch = response.json()
+        statuses.extend(batch)
+        if not since_id or not batch:
+            return statuses, None
+        max_id = batch[-1]["id"]
+        if len(statuses) >= CATCH_UP_CHUNK:
+            return statuses, max_id

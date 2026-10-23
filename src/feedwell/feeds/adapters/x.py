@@ -31,6 +31,8 @@ AUTHORIZE_URL = "https://x.com/i/oauth2/authorize"
 TOKEN_URL = "https://api.x.com/2/oauth2/token"
 API_BASE = "https://api.x.com/2"
 SCOPES = "tweet.read users.read offline.access"
+TWEETS_PER_PAGE = 40
+MAX_TIMELINE_TWEETS = 120  # catch-up cap per sync; kept low since X bills per post read
 
 
 class XAPIError(Exception):
@@ -163,35 +165,61 @@ def fetch_profile(access_token: str) -> dict:
     return response.json().get("data", {})
 
 
-def fetch_home_timeline(account) -> list[dict]:
+def fetch_home_timeline(account, since_id: str | None = None) -> dict:
     """Fetch the account's home timeline.
+
+    Without since_id (first sync) this is just the newest page. With it,
+    pages via next_token through everything newer than since_id, up to
+    MAX_TIMELINE_TWEETS, merging each page's "data" and "includes" into a
+    single payload shaped like one response. "meta.newest_id" is taken from
+    the first (newest) page, for the caller to pass as the next since_id.
 
     Note: requires the connected X developer Project to be enrolled in
     X's pay-per-use API plan -- this will return a 403 with a
     "client-not-enrolled" error and raise a friendly XAPIError until
     then. Kept as a real call (not a stub) so it works immediately
-    once billing is enabled, with no further code changes.
+    once billing is enabled, with no further code changes. Pay-per-use
+    bills per post read, so unlike Mastodon/Bluesky there's no resumable
+    backfill: anything past MAX_TIMELINE_TWEETS in one Refresh is skipped.
     """
-    response = _request(
-        "get",
-        f"{API_BASE}/users/{account.external_id}/timelines/reverse_chronological",
-        headers={"Authorization": "Bearer " + account.access_token},
-        params={
-            "max_results": 40,
+    merged: dict = {"data": [], "includes": {"users": [], "media": []}, "meta": {}}
+    next_token: str | None = None
+    while True:
+        params = {
+            "max_results": TWEETS_PER_PAGE,
             "tweet.fields": "created_at,public_metrics,author_id",
             "expansions": "author_id,attachments.media_keys",
             "media.fields": "url,preview_image_url,type,alt_text",
-        },
-    )
-    if not response.ok:
-        if "client-not-enrolled" in response.text:
-            raise XAPIError(
-                "Could not fetch your X feed: your developer Project isn't "
-                "enrolled in X's pay-per-use API plan. Add a payment method "
-                "in the X developer portal to enable timeline reads."
-            )
-        raise XAPIError(
-            f"Could not fetch your X feed ({response.status_code}). "
-            "Reading timelines requires a paid X API plan."
+        }
+        if since_id:
+            params["since_id"] = since_id
+        if next_token:
+            params["pagination_token"] = next_token
+        response = _request(
+            "get",
+            f"{API_BASE}/users/{account.external_id}/timelines/reverse_chronological",
+            headers={"Authorization": "Bearer " + account.access_token},
+            params=params,
         )
-    return response.json()
+        if not response.ok:
+            if "client-not-enrolled" in response.text:
+                raise XAPIError(
+                    "Could not fetch your X feed: your developer Project isn't "
+                    "enrolled in X's pay-per-use API plan. Add a payment method "
+                    "in the X developer portal to enable timeline reads."
+                )
+            raise XAPIError(
+                f"Could not fetch your X feed ({response.status_code}). "
+                "Reading timelines requires a paid X API plan."
+            )
+        payload = response.json()
+        meta = payload.get("meta") or {}
+        if not merged["meta"].get("newest_id") and meta.get("newest_id"):
+            merged["meta"]["newest_id"] = meta["newest_id"]
+        merged["data"].extend(payload.get("data") or [])
+        for key in ("users", "media"):
+            merged["includes"][key].extend((payload.get("includes") or {}).get(key) or [])
+
+        next_token = meta.get("next_token")
+        if not since_id or not next_token or len(merged["data"]) >= MAX_TIMELINE_TWEETS:
+            return merged

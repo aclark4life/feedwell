@@ -1,6 +1,17 @@
 {% extends "feeds/base.html" %}
 {% block content %}
-  {% if user.is_authenticated and has_accounts %}
+  {% if user.is_authenticated and has_accounts and catch_up %}
+    {# Mid-catch-up: immediately post the next step (see RefreshFeedView). #}
+    <form id="catch-up" method="post" action="{% url 'refresh_feed' %}" hx-boost="false" style="text-align: right;">
+      {% csrf_token %}
+      <input type="hidden" name="step" value="{{ catch_up.step }}">
+      <input type="hidden" name="so_far" value="{{ catch_up.so_far }}">
+      <button type="submit" class="outline" aria-busy="true" disabled>
+        Catching up… {{ catch_up.so_far }} post{{ catch_up.so_far|pluralize }} so far
+      </button>
+    </form>
+    <script>document.getElementById('catch-up').submit();</script>
+  {% elif user.is_authenticated and has_accounts %}
     <form
       method="post"
       action="{% url 'refresh_feed' %}"

@@ -90,6 +90,13 @@ class FeedView(InfiniteScrollListMixin, ListView):
         context = super().get_context_data(**kwargs)
         if self.request.user.is_authenticated:
             context["has_accounts"] = Account.objects.filter(owner=self.request.user).exists()
+            # Mid-catch-up (see RefreshFeedView): render the auto-continue form.
+            step = _int_param(self.request.GET, "catch_up")
+            if step:
+                context["catch_up"] = {
+                    "step": step,
+                    "so_far": _int_param(self.request.GET, "so_far"),
+                }
         return context
 
 
@@ -471,16 +478,41 @@ class BlueskyConnectStartView(LoginRequiredMixin, FormView):
         return redirect(reverse("connections"))
 
 
+MAX_CATCH_UP_STEPS = 25  # safety stop for an automatic catch-up chain (~5000 posts)
+
+
+def _int_param(data, name: str) -> int:
+    try:
+        return max(int(data.get(name) or 0), 0)
+    except ValueError:
+        return 0
+
+
 class RefreshFeedView(LoginRequiredMixin, View):
-    """Manual sync trigger: fetches recent posts for every connected account."""
+    """Manual sync trigger: fetches recent posts for every connected account.
+
+    A big catch-up (see sync.HOME_BACKFILL) is split across several short
+    requests instead of one long one: while there's more to fetch, this
+    redirects back to the feed with ?catch_up=<step>&so_far=<count>, which
+    renders a "Catching up..." form that auto-posts the next step here.
+    The success message is only shown once, with the grand total, at the end.
+    """
 
     def post(self, request, *args, **kwargs):
-        total, errors = sync_all_accounts(request.user)
+        step = _int_param(request.POST, "step")
+        total, errors, more = sync_all_accounts(request.user, catching_up=step > 0)
+        total += _int_param(request.POST, "so_far")
+        for error in errors:
+            messages.warning(request, error)
+
+        if more and step + 1 < MAX_CATCH_UP_STEPS:
+            return redirect(f"{reverse('feed')}?catch_up={step + 1}&so_far={total}")
+
         if total:
             count_label = "post" if total == 1 else "posts"
             messages.success(request, f"Synced {total} new/updated {count_label}.")
-        for error in errors:
-            messages.warning(request, error)
-        if not total and not errors:
+        if more:
+            messages.info(request, "Still catching up -- press Refresh to keep going.")
+        elif not total and not errors:
             messages.info(request, "Nothing new to sync.")
         return redirect(reverse("feed"))
