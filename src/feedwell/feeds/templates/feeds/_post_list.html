@@ -29,6 +29,9 @@
       <time class="post-timestamp" datetime="{{ post.posted_at|date:'c' }}" title="{{ post.posted_at }}">{{ post.posted_at|date:"M j, g:i A" }}</time>
     </div>
     <p>{{ post.content|safe }}</p>
+    {% if post.media %}
+      {% include "feeds/_post_media.html" %}
+    {% endif %}
     {% if post.url %}
       <p style="text-align: right;">
         <a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">Open on {{ post.link_label }} ↗</a>

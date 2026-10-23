@@ -53,6 +53,29 @@
     .post-header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
     .post-timestamp { color: var(--pico-muted-color, #6c757d); font-size: 0.8rem; white-space: nowrap; }
 
+    /* Post media: a two-column grid of fixed-height tiles (one full-width
+       tile when there's only a single attachment), cropped to fill. */
+    .post-media { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; margin-bottom: 1rem; }
+    .post-media-single { grid-template-columns: 1fr; }
+    .post-media > * { position: relative; display: block; border-radius: 0.4rem; overflow: hidden; background: #0000000d; }
+    .post-media img, .post-media video { display: block; width: 100%; height: 14rem; object-fit: cover; margin: 0; }
+    .post-media-single img, .post-media-single video { height: auto; max-height: 28rem; object-fit: contain; }
+    .post-media audio { width: 100%; grid-column: 1 / -1; background: none; }
+    .post-media .media-attachment { grid-column: 1 / -1; padding: 0.5rem 0.75rem; background: none; }
+    .media-play {
+      position: absolute; inset: 0; margin: auto; width: 3.25rem; height: 3.25rem;
+      display: flex; align-items: center; justify-content: center; border-radius: 50%;
+      background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 1.3rem; padding-left: 0.2rem;
+    }
+
+    /* Image lightbox: a native <dialog> (Esc closes it for free) with
+       the image scaled to fit the viewport and its alt text as caption. */
+    #lightbox { max-width: 95vw; max-height: 95vh; padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; }
+    #lightbox::backdrop { background: rgba(0, 0, 0, 0.85); }
+    #lightbox img { display: block; max-width: 95vw; max-height: 88vh; margin: 0 auto; cursor: zoom-out; }
+    #lightbox figcaption { color: #eee; text-align: center; font-size: 0.85rem; margin-top: 0.5rem; }
+    #lightbox figcaption:empty { display: none; }
+
     .feed-stats {
       background: var(--pico-code-background-color, #f4f4f5); border-radius: 0.5rem;
       padding: 0.6rem 1rem; margin-bottom: 1rem; font-size: 0.9rem;
@@ -77,6 +100,9 @@
 </head>
 <body hx-boost="true">
   <a id="back-to-top" href="#top" aria-label="Back to top">↑</a>
+  <dialog id="lightbox" aria-label="Image viewer">
+    <figure><img alt=""><figcaption></figcaption></figure>
+  </dialog>
   <header class="container" id="top">
     <nav>
       <ul>
@@ -127,6 +153,32 @@
       window.addEventListener('scroll', toggle, { passive: true });
       toggle();
     })();
+
+    // Open post images in the lightbox instead of a new tab. Delegated on
+    // document so it also covers posts added later by infinite scroll.
+    // Modified clicks (cmd/ctrl/shift/middle) still open the image in a
+    // new tab as usual. hx-boost re-runs this script on every boosted
+    // navigation (and swaps in a fresh <dialog>), so bind only once and
+    // look the dialog up at click time.
+    if (!window.feedwellLightboxBound) {
+      window.feedwellLightboxBound = true;
+      document.addEventListener('click', function (event) {
+        var lightbox = document.getElementById('lightbox');
+        if (!lightbox) return;
+        if (event.target.closest('#lightbox')) {
+          lightbox.close();
+          return;
+        }
+        var link = event.target.closest('a.media-link');
+        if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+        event.preventDefault();
+        var img = lightbox.querySelector('img');
+        img.src = link.href;
+        img.alt = link.dataset.alt || '';
+        lightbox.querySelector('figcaption').textContent = link.dataset.alt || '';
+        lightbox.showModal();
+      });
+    }
   </script>
   <footer class="container" style="text-align: center;">
     {% if user.is_authenticated %}

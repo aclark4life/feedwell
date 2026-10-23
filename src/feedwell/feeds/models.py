@@ -113,8 +113,30 @@ class MediaItem(EmbeddedModel):
     """A single media attachment (image, video, etc.) embedded on a Post."""
 
     url = models.URLField(blank=True)
+    preview_url = models.URLField(
+        blank=True,
+        help_text="Still thumbnail, e.g. a video's poster frame. Some platforms "
+        "(X video, Bluesky video) only give us this, with no directly playable url.",
+    )
     media_type = models.CharField(max_length=32, blank=True)
     alt_text = models.CharField(max_length=1000, blank=True)
+
+    @property
+    def kind(self) -> str:
+        """Normalized media kind used to pick how to render it.
+
+        Each platform names its types differently (X "photo"/"animated_gif",
+        Mastodon "image"/"gifv", ...), so collapse them to one of
+        image / video / gif / audio, or "" if unrecognized.
+        """
+        return {
+            "image": "image",
+            "photo": "image",
+            "video": "video",
+            "gifv": "gif",
+            "animated_gif": "gif",
+            "audio": "audio",
+        }.get(self.media_type, "")
 
 
 class Post(models.Model):

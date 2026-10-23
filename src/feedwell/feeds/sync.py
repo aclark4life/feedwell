@@ -165,13 +165,17 @@ def _upsert_x_tweet(account: Account, tweet: dict, users_by_id: dict, media_by_k
         replies=metrics_data.get("reply_count") or 0,
     )
     media_keys = (tweet.get("attachments") or {}).get("media_keys") or []
+    # X only returns "url" for photos; videos and GIFs just get a
+    # preview_image_url (the playable variants need a separate field and
+    # are often auth-gated), so keep the preview to show a thumbnail.
     media = [
         MediaItem(
-            url=(media_by_key.get(key) or {}).get("url") or "",
-            media_type=(media_by_key.get(key) or {}).get("type") or "",
-            alt_text=(media_by_key.get(key) or {}).get("alt_text") or "",
+            url=item.get("url") or "",
+            preview_url=item.get("preview_image_url") or "",
+            media_type=item.get("type") or "",
+            alt_text=item.get("alt_text") or "",
         )
-        for key in media_keys
+        for item in (media_by_key.get(key) or {} for key in media_keys)
     ]
     handle = author.get("username") or ""
     posted_at = _parse_datetime(tweet.get("created_at")) or datetime.now(tz=UTC)
@@ -216,6 +220,7 @@ def _upsert_mastodon_status(account: Account, status: dict, own: bool = False) -
     media = [
         MediaItem(
             url=item.get("url") or "",
+            preview_url=item.get("preview_url") or "",
             media_type=item.get("type") or "",
             alt_text=item.get("description") or "",
         )
@@ -270,15 +275,7 @@ def _upsert_bluesky_post(account: Account, item: dict, own: bool = False) -> boo
         reposts=post.get("repostCount") or 0,
         replies=post.get("replyCount") or 0,
     )
-    embed = post.get("embed") or {}
-    media = [
-        MediaItem(
-            url=image.get("fullsize") or "",
-            media_type="image",
-            alt_text=image.get("alt") or "",
-        )
-        for image in embed.get("images") or []
-    ]
+    media = _bluesky_media(post.get("embed") or {})
 
     defaults = {
         "author_name": author.get("displayName") or handle,
@@ -302,6 +299,36 @@ def _upsert_bluesky_post(account: Account, item: dict, own: bool = False) -> boo
         defaults=defaults,
     )
     return created
+
+
+def _bluesky_media(embed: dict) -> list[MediaItem]:
+    """Extract media from a Bluesky post's embed view.
+
+    A quote post with attached media ("recordWithMedia") nests the images
+    or video one level down under "media". Videos are HLS playlists that a
+    plain <video> tag can't play, so only their thumbnail is kept.
+    """
+    if embed.get("$type") == "app.bsky.embed.recordWithMedia#view":
+        embed = embed.get("media") or {}
+
+    if embed.get("$type") == "app.bsky.embed.video#view":
+        return [
+            MediaItem(
+                preview_url=embed.get("thumbnail") or "",
+                media_type="video",
+                alt_text=embed.get("alt") or "",
+            )
+        ]
+
+    return [
+        MediaItem(
+            url=image.get("fullsize") or "",
+            preview_url=image.get("thumb") or "",
+            media_type="image",
+            alt_text=image.get("alt") or "",
+        )
+        for image in embed.get("images") or []
+    ]
 
 
 def _parse_datetime(value: str | None):

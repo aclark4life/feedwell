@@ -180,7 +180,7 @@ def fetch_home_timeline(account) -> list[dict]:
             "max_results": 40,
             "tweet.fields": "created_at,public_metrics,author_id",
             "expansions": "author_id,attachments.media_keys",
-            "media.fields": "url,type,alt_text",
+            "media.fields": "url,preview_image_url,type,alt_text",
         },
     )
     if not response.ok:

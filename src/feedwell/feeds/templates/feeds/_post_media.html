@@ -1,0 +1,28 @@
+{% comment %}
+  Media attachments for one post. Images open in the lightbox (see
+  base.html); playable video/GIF/audio renders inline; anything we only
+  have a thumbnail for (X video, Bluesky's HLS video) links out to the post.
+  hx-boost is off so external media links aren't intercepted as page loads.
+{% endcomment %}
+<div class="post-media{% if post.media|length == 1 %} post-media-single{% endif %}" hx-boost="false">
+  {% for item in post.media %}
+    {% if item.kind == "image" and item.url %}
+      <a class="media-link" href="{{ item.url }}" target="_blank" rel="noopener noreferrer" data-alt="{{ item.alt_text }}">
+        <img src="{{ item.preview_url|default:item.url }}" alt="{{ item.alt_text }}" loading="lazy">
+      </a>
+    {% elif item.kind == "gif" and item.url %}
+      <video src="{{ item.url }}" {% if item.preview_url %}poster="{{ item.preview_url }}"{% endif %} autoplay loop muted playsinline aria-label="{{ item.alt_text }}"></video>
+    {% elif item.kind == "video" and item.url %}
+      <video src="{{ item.url }}" {% if item.preview_url %}poster="{{ item.preview_url }}"{% endif %} controls preload="none" aria-label="{{ item.alt_text }}"></video>
+    {% elif item.kind == "audio" and item.url %}
+      <audio src="{{ item.url }}" controls preload="none" aria-label="{{ item.alt_text }}"></audio>
+    {% elif item.preview_url %}
+      <a class="media-external" href="{{ post.url|default:item.preview_url }}" target="_blank" rel="noopener noreferrer" title="Play on {{ post.link_label }}">
+        <img src="{{ item.preview_url }}" alt="{{ item.alt_text }}" loading="lazy">
+        {% if item.kind == "video" or item.kind == "gif" %}<span class="media-play" aria-hidden="true">▶</span>{% endif %}
+      </a>
+    {% elif item.url %}
+      <a class="media-attachment" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">📎 {{ item.alt_text|default:"Attachment" }} ↗</a>
+    {% endif %}
+  {% endfor %}
+</div>
