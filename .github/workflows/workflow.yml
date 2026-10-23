@@ -68,6 +68,47 @@ jobs:
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  github-release:
+    name: Create GitHub release
+    needs: [publish-to-pypi]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: write  # create the release and upload its assets
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history + tags, for the commit-list notes
+
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Notes: every commit since the previous tag, minus version bumps.
+          prev=$(git describe --tags --abbrev=0 "$TAG^" 2>/dev/null || true)
+          {
+            git log --format='- %s (%h)' ${prev:+"$prev.."}"$TAG" | grep -v -- '- Release ' || true
+            if [ -n "$prev" ]; then
+              echo
+              echo "**Full changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$prev...$TAG"
+            fi
+          } > notes.md
+
+          # a/b/rc versions (e.g. v0.2.5a1) are marked as pre-releases.
+          prerelease=""
+          if [[ "$TAG" =~ (a|b|rc)[0-9]+$ ]]; then prerelease="--prerelease"; fi
+
+          gh release create "$TAG" dist/* --verify-tag --title "$TAG" --notes-file notes.md $prerelease
+
   publish-to-testpypi:
     name: Publish to TestPyPI
     needs: [build]
