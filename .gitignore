@@ -14,3 +14,6 @@ htmlcov/
 
 # Local credentials (created by `feedwell` on first run; holds X/etc secrets)
 feedwell.toml
+
+# uv lock file (project uses pip; not tracked)
+uv.lock
