@@ -42,6 +42,8 @@ def fake_request(monkeypatch, module, pages):
         return FakeResponse(remaining.pop(0))
 
     monkeypatch.setattr(module, "_request", _request)
+    if module is bluesky:
+        monkeypatch.setattr(bluesky, "_sessions", {})  # no session reuse across tests
     return calls
 
 

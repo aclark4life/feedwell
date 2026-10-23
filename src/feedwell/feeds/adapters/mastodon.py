@@ -24,7 +24,7 @@ import requests
 from ..models import MastodonApp
 
 REQUEST_TIMEOUT = 10
-SCOPES = "read"
+SCOPES = "read write:favourites write:statuses"  # write: likes, boosts, replies
 STATUSES_PER_PAGE = 40  # Mastodon's max allowed "limit" per request
 MAX_OWN_STATUSES = 200  # how far back "My posts" pages via max_id per sync
 CATCH_UP_CHUNK = 200  # home-timeline statuses per catch-up request (see fetch_statuses)
@@ -56,9 +56,14 @@ def normalize_instance_domain(raw: str) -> str:
 
 
 def get_or_register_app(instance_domain: str, redirect_uri: str) -> MastodonApp:
-    """Return a cached MastodonApp for this instance, registering one if needed."""
+    """Return a cached MastodonApp for this instance, registering one if needed.
+
+    Also re-registers an app that was registered with different scopes
+    (e.g. read-only, from before feedwell supported likes/boosts/replies),
+    since Mastodon rejects authorize requests for scopes the app lacks.
+    """
     app = MastodonApp.objects.filter(instance_domain=instance_domain).first()
-    if app is not None:
+    if app is not None and app.scopes == SCOPES:
         return app
 
     response = _request(
@@ -77,11 +82,15 @@ def get_or_register_app(instance_domain: str, redirect_uri: str) -> MastodonApp:
         )
 
     data = response.json()
-    return MastodonApp.objects.create(
+    app, _ = MastodonApp.objects.update_or_create(
         instance_domain=instance_domain,
-        client_id=data["client_id"],
-        client_secret=data["client_secret"],
+        defaults={
+            "client_id": data["client_id"],
+            "client_secret": data["client_secret"],
+            "scopes": SCOPES,
+        },
     )
+    return app
 
 
 def build_authorize_url(app: MastodonApp, redirect_uri: str) -> str:
@@ -234,3 +243,52 @@ def fetch_statuses(
         max_id = batch[-1]["id"]
         if len(statuses) >= CATCH_UP_CHUNK:
             return statuses, max_id
+
+
+READ_ONLY_HINT = (
+    "feedwell only has read access to this account. Reconnect it under "
+    "Connections to enable likes, boosts and replies."
+)
+
+
+def _post_status_api(account, path: str, **kwargs) -> dict:
+    """POST to /api/v1/statuses{path} with the account's token, for the
+    write actions below. Returns the status Mastodon sends back."""
+    instance_domain = account.metadata.get("instance_domain")
+    if not instance_domain:
+        raise MastodonAPIError("This account is missing its Mastodon instance domain.")
+    response = _request(
+        "post",
+        f"https://{instance_domain}/api/v1/statuses{path}",
+        headers={"Authorization": "Bearer " + account.access_token},
+        **kwargs,
+    )
+    if response.status_code == 403:
+        # Tokens issued before feedwell asked for write scopes.
+        raise MastodonAPIError(READ_ONLY_HINT)
+    if not response.ok:
+        raise MastodonAPIError(
+            f"{instance_domain} rejected that ({response.status_code}): {response.text[:200]}"
+        )
+    return response.json()
+
+
+def set_favourite(account, status_id: str, on: bool) -> dict:
+    """Like (favourite) or un-like a status by its id on the account's own
+    instance. Returns the updated status."""
+    action = "favourite" if on else "unfavourite"
+    return _post_status_api(account, f"/{status_id}/{action}")
+
+
+def set_reblog(account, status_id: str, on: bool) -> dict:
+    """Boost or un-boost a status. Returns the updated *original* status:
+    Mastodon answers a boost with the new wrapper status, so unwrap it to
+    match what an un-boost returns."""
+    action = "reblog" if on else "unreblog"
+    result = _post_status_api(account, f"/{status_id}/{action}")
+    return result.get("reblog") or result
+
+
+def post_reply(account, in_reply_to_id: str, text: str) -> dict:
+    """Publish `text` as a reply to a status. Returns the new status."""
+    return _post_status_api(account, "", data={"status": text, "in_reply_to_id": in_reply_to_id})

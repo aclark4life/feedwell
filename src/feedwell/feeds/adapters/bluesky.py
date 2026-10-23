@@ -9,20 +9,24 @@ com.atproto.server.createSession -- no redirect/callback dance needed.
 
 Session tokens (accessJwt) are short-lived (about 2 hours), and rather
 than juggle refreshJwt renewal, this adapter just re-authenticates with
-the stored identifier/app password at the start of every sync -- simple
-and correct for a local, on-demand-refresh app like feedwell.
+the stored identifier/app password when it needs a token -- simple and
+correct for a local app like feedwell. Sessions are cached in-process for
+SESSION_TTL (well under the token lifetime), since createSession is
+rate-limited and likes/reposts can come in quick succession.
 
 See https://docs.bsky.app for the full API reference.
 """
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 import requests
 
 REQUEST_TIMEOUT = 10
+SESSION_TTL = 30 * 60  # seconds to reuse a session's accessJwt (see module docstring)
 API_BASE = "https://bsky.social/xrpc"
 POSTS_PER_PAGE = 40  # Bluesky's default/max "limit" per request
 MAX_OWN_POSTS = 200  # how far back "My posts" pages via cursor per sync
@@ -95,15 +99,24 @@ def fetch_profile(access_token: str, did: str) -> dict:
     return response.json()
 
 
-def _authenticate(account) -> tuple[str, str]:
-    """Re-authenticate using the identifier/app password saved at connect time,
-    returning (access_token, did). See module docstring for why this
-    re-logs-in every sync rather than juggling refresh tokens."""
+# identifier -> (access_token, did, monotonic expiry); see _authenticate.
+_sessions: dict[str, tuple[str, str, float]] = {}
+
+
+def _authenticate(account, fresh: bool = False) -> tuple[str, str]:
+    """Authenticate using the identifier/app password saved at connect time,
+    returning (access_token, did). Reuses a cached session unless `fresh`.
+    See module docstring for why this re-logs-in rather than juggling
+    refresh tokens."""
     identifier = account.metadata.get("identifier")
     app_password = account.metadata.get("app_password")
     if not identifier or not app_password:
         raise BlueskyAPIError("This account is missing its Bluesky login details.")
+    cached = _sessions.get(identifier)
+    if cached and not fresh and cached[2] > time.monotonic():
+        return cached[0], account.external_id or cached[1]
     session = create_session(identifier, app_password)
+    _sessions[identifier] = (session.access_token, session.did, time.monotonic() + SESSION_TTL)
     return session.access_token, account.external_id or session.did
 
 
@@ -196,3 +209,42 @@ def fetch_own_posts(account) -> list[dict]:
         if not cursor:
             break
     return items
+
+
+def _write(account, method: str, payload: dict) -> dict:
+    """POST a com.atproto.repo write to the account's own repo, retrying
+    once with a fresh session if the cached one was rejected."""
+    for fresh in (False, True):
+        access_token, did = _authenticate(account, fresh=fresh)
+        response = _request(
+            "post",
+            f"{API_BASE}/com.atproto.repo.{method}",
+            headers={"Authorization": "Bearer " + access_token},
+            json={"repo": did, **payload},
+        )
+        if response.status_code != 401:
+            break
+    if not response.ok:
+        try:
+            detail = response.json().get("message") or ""
+        except ValueError:
+            detail = ""
+        raise BlueskyAPIError(f"Bluesky rejected that ({response.status_code}). {detail}".strip())
+    return response.json() if response.content else {}
+
+
+def create_record(account, collection: str, record: dict) -> str:
+    """Create a record (like, repost, post...) in the account's repo and
+    return its at:// URI, which is what deletes it again later."""
+    record = {
+        "$type": collection,
+        "createdAt": datetime.now(tz=UTC).isoformat().replace("+00:00", "Z"),
+        **record,
+    }
+    return _write(account, "createRecord", {"collection": collection, "record": record})["uri"]
+
+
+def delete_record(account, uri: str) -> None:
+    """Delete a record by its at://did/collection/rkey URI (e.g. to unlike)."""
+    _, collection, rkey = uri.removeprefix("at://").split("/", 2)
+    _write(account, "deleteRecord", {"collection": collection, "rkey": rkey})

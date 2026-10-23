@@ -1,0 +1,33 @@
+{% comment %}
+  Like / boost / reply bar for one post. Each button hx-posts to
+  PostActionView, which answers with this same partial re-rendered, swapped
+  in over the old one (hx-target="this" is inherited by the buttons/form).
+  The reply form toggles open via the "replying" class; it's also rendered
+  open after a failed reply, keeping what was typed.
+{% endcomment %}
+<div class="post-actions{% if replying %} replying{% endif %}" hx-target="this" hx-swap="outerHTML">
+  {% if post.supports_interactions %}
+    <button type="button" class="post-action{% if post.is_liked %} active{% endif %}"
+            hx-post="{% url 'post_action' post.pk 'like' %}" aria-pressed="{{ post.is_liked|yesno:'true,false' }}"
+            title="{{ post.is_liked|yesno:'Unlike,Like' }}">{{ post.is_liked|yesno:'♥,♡' }} {{ post.metrics.likes|default:0 }}</button>
+    <button type="button" class="post-action{% if post.is_boosted %} active{% endif %}"
+            hx-post="{% url 'post_action' post.pk 'boost' %}" aria-pressed="{{ post.is_boosted|yesno:'true,false' }}"
+            title="{{ post.is_boosted|yesno:'Undo boost,Boost' }}">🔁 {{ post.metrics.reposts|default:0 }}</button>
+    <button type="button" class="post-action" title="Reply"
+            onclick="this.closest('.post-actions').classList.toggle('replying')">💬 {{ post.metrics.replies|default:0 }}</button>
+  {% else %}
+    {% if post.metrics %}
+      <span class="post-action" title="Likes">♡ {{ post.metrics.likes }}</span>
+      <span class="post-action" title="Reposts">🔁 {{ post.metrics.reposts }}</span>
+      <span class="post-action" title="Replies">💬 {{ post.metrics.replies }}</span>
+    {% endif %}
+  {% endif %}
+  {% if error %}<small class="action-error" role="alert">{{ error }}</small>{% endif %}
+  {% if notice %}<small class="action-notice" role="status">{{ notice }}</small>{% endif %}
+  {% if post.supports_interactions %}
+    <form class="reply-form" hx-post="{% url 'post_action' post.pk 'reply' %}">
+      <textarea name="text" rows="3" aria-label="Reply to {{ post.author_handle|default:post.author_name }}">{{ reply_text|default:post.reply_prefill }}</textarea>
+      <button type="submit">Reply</button>
+    </form>
+  {% endif %}
+</div>

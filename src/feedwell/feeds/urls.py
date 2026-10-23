@@ -11,6 +11,7 @@ from .views import (
     MastodonConnectCallbackView,
     MastodonConnectStartView,
     MyPostsView,
+    PostActionView,
     RefreshFeedView,
     RefreshMyPostsView,
     ReorderConnectionsView,
@@ -23,6 +24,7 @@ urlpatterns = [
     path("refresh/", RefreshFeedView.as_view(), name="refresh_feed"),
     path("me/", MyPostsView.as_view(), name="my_posts"),
     path("me/refresh/", RefreshMyPostsView.as_view(), name="refresh_my_posts"),
+    path("posts/<str:pk>/<str:action>/", PostActionView.as_view(), name="post_action"),
     path("connections/", ConnectionsView.as_view(), name="connections"),
     path(
         "connections/<str:platform>/connect/",

@@ -33,6 +33,12 @@ class MastodonApp(models.Model):
     instance_domain = models.CharField(max_length=255, unique=True)
     client_id = models.CharField(max_length=255)
     client_secret = models.CharField(max_length=255)
+    scopes = models.CharField(
+        max_length=255,
+        default="read",
+        help_text="OAuth scopes this app was registered with. Mastodon only grants "
+        "tokens within these, so it's re-registered when feedwell needs more.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:
@@ -253,6 +259,46 @@ class Post(models.Model):
             return ""
 
         return f"https://{instance_domain}/@{acct}/{local_id}"
+
+    # Likes/boosts/replies (see interactions.py). The signed-in user's own
+    # like/boost state comes from the platform payload in `raw`, which
+    # interactions.py keeps updated after each action.
+
+    @property
+    def supports_interactions(self) -> bool:
+        return self.platform in ("mastodon", "bluesky")
+
+    def mastodon_status(self) -> dict:
+        """The status a Mastodon boost wraps, or the status itself."""
+        return self.raw.get("reblog") or self.raw
+
+    def _bluesky_viewer(self) -> dict:
+        return (self.raw.get("post") or {}).get("viewer") or {}
+
+    @property
+    def is_liked(self) -> bool:
+        if self.platform == "mastodon":
+            return bool(self.mastodon_status().get("favourited"))
+        if self.platform == "bluesky":
+            return bool(self._bluesky_viewer().get("like"))
+        return False
+
+    @property
+    def is_boosted(self) -> bool:
+        if self.platform == "mastodon":
+            return bool(self.mastodon_status().get("reblogged"))
+        if self.platform == "bluesky":
+            return bool(self._bluesky_viewer().get("repost"))
+        return False
+
+    @property
+    def reply_prefill(self) -> str:
+        """Starting text for a reply. Mastodon only notifies people who are
+        @-mentioned, so start with the author's acct, as its own UI does.
+        (Bluesky threads notify the parent's author without a mention.)"""
+        if self.platform == "mastodon" and self.author_handle:
+            return f"@{self.author_handle.lstrip('@')} "
+        return ""
 
     @property
     def link_label(self) -> str:

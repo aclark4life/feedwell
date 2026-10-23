@@ -102,6 +102,26 @@
     }
     #lightbox.single .lightbox-nav, #lightbox.single .lightbox-counter { display: none; }
 
+    /* Post footer: like/boost/reply bar on the left, "Open on ..." links on
+       the right. The bar spans the full row while its reply form is open. */
+    .post-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.5rem; }
+    .post-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
+    .post-actions.replying { flex-basis: 100%; }
+    .post-action {
+      width: auto; margin: 0; padding: 0.2rem 0.55rem; border: 0; border-radius: 999px;
+      background: transparent; color: var(--pico-muted-color, #6c757d); font-size: 0.9rem; line-height: 1.4;
+    }
+    button.post-action:hover { background: #0000000f; color: inherit; }
+    .post-action.active { color: #d81b60; font-weight: 600; }
+    .post-action.htmx-request { opacity: 0.5; }
+    .action-error { color: #c62828; }
+    .action-notice { color: #2e7d32; }
+    .reply-form { display: none; flex-basis: 100%; margin: 0.5rem 0 0; }
+    .post-actions.replying .reply-form { display: block; }
+    .reply-form textarea { margin-bottom: 0.5rem; }
+    .reply-form button { width: auto; padding: 0.3rem 1rem; }
+    .post-links { font-size: 0.9rem; margin-left: auto; }
+
     .feed-stats {
       background: var(--pico-code-background-color, #f4f4f5); border-radius: 0.5rem;
       padding: 0.6rem 1rem; margin-bottom: 1rem; font-size: 0.9rem;
@@ -183,6 +203,18 @@
       window.addEventListener('scroll', toggle, { passive: true });
       toggle();
     })();
+
+    // Send Django's CSRF token with every htmx request (e.g. post like/boost
+    // buttons, which have no form to carry it). Read from the cookie each
+    // time rather than baked into the page, since login rotates it and
+    // hx-boost navigation never reloads <body>'s attributes.
+    if (!window.feedwellCsrfBound) {
+      window.feedwellCsrfBound = true;
+      document.addEventListener('htmx:configRequest', function (event) {
+        var match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+        if (match) event.detail.headers['X-CSRFToken'] = decodeURIComponent(match[1]);
+      });
+    }
 
     // Open post images in the lightbox instead of a new tab. Delegated on
     // document so it also covers posts added later by infinite scroll.

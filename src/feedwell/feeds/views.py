@@ -4,15 +4,18 @@ import secrets
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
-from django.shortcuts import redirect
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateformat import format as format_date
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import ListView
 from django.views.generic.edit import DeleteView, FormView
 
+from . import interactions
 from .adapters import bluesky
 from .adapters import facebook as facebook_adapter
 from .adapters import mastodon
@@ -53,6 +56,12 @@ class InfiniteScrollListMixin:
 
     partial_template_name: str
     context_object_name: str
+
+    # Posts' like/boost/reply buttons send htmx POSTs that read the CSRF
+    # token from its cookie (see base.html), so make sure it's set.
+    @method_decorator(ensure_csrf_cookie)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
     def get_template_names(self):
         if self.request.headers.get("HX-Request") == "true" and self.request.GET.get("page"):
@@ -293,18 +302,17 @@ class MastodonConnectCallbackView(LoginRequiredMixin, View):
             messages.error(request, str(exc))
             return redirect(reverse("connections"))
 
-        Account.objects.update_or_create(
-            owner=request.user,
-            platform="mastodon",
-            external_id=token.account_id,
-            defaults={
-                "handle": f"{token.handle}@{instance_domain}",
-                "display_name": token.display_name,
-                "avatar_url": token.avatar_url,
-                "access_token": token.access_token,
-                "metadata": {"instance_domain": instance_domain},
-            },
+        account, _ = Account.objects.get_or_create(
+            owner=request.user, platform="mastodon", external_id=token.account_id
         )
+        account.handle = f"{token.handle}@{instance_domain}"
+        account.display_name = token.display_name
+        account.avatar_url = token.avatar_url
+        account.access_token = token.access_token
+        # Merge rather than replace, so reconnecting (e.g. to grant write
+        # access) keeps the account's sync state (see sync.HOME_SINCE_ID).
+        account.metadata = {**account.metadata, "instance_domain": instance_domain}
+        account.save()
         messages.success(request, f"Connected {token.handle}@{instance_domain}.")
         return redirect(reverse("connections"))
 
@@ -516,3 +524,36 @@ class RefreshFeedView(LoginRequiredMixin, View):
         elif not total and not errors:
             messages.info(request, "Nothing new to sync.")
         return redirect(reverse("feed"))
+
+
+class PostActionView(LoginRequiredMixin, View):
+    """Like, boost or reply to a post (htmx). Responds with the post's
+    re-rendered actions bar, carrying any error inline."""
+
+    ACTIONS = ("like", "boost", "reply")
+
+    def post(self, request, pk, action, *args, **kwargs):
+        if action not in self.ACTIONS:
+            raise Http404
+        post = get_object_or_404(
+            Post.objects.select_related("account"), pk=pk, account__owner=request.user
+        )
+        context = {"post": post}
+        try:
+            if action == "like":
+                interactions.toggle_like(post)
+            elif action == "boost":
+                interactions.toggle_boost(post)
+            else:
+                text = request.POST.get("text", "").strip()
+                if not text:
+                    context.update(error="Write something to reply with.", replying=True)
+                else:
+                    interactions.reply(post, text)
+                    context["notice"] = "Reply posted."
+        except (MastodonAPIError, BlueskyAPIError, interactions.InteractionError) as exc:
+            context["error"] = str(exc)
+            if action == "reply":
+                # Keep the form open with what they wrote, so it isn't lost.
+                context.update(replying=True, reply_text=request.POST.get("text", ""))
+        return render(request, "feeds/_post_actions.html", context)

@@ -32,13 +32,16 @@
     {% if post.media %}
       {% include "feeds/_post_media.html" %}
     {% endif %}
-    {% if post.url %}
-      <p style="text-align: right;">
-        <a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">Open on {{ post.link_label }} ↗</a>
-        {% if post.federated_url %}
-          &middot; <a href="{{ post.federated_url }}" target="_blank" rel="noopener noreferrer">View on {{ post.account.metadata.instance_domain }} ↗</a>
-        {% endif %}
-      </p>
-    {% endif %}
+    <div class="post-footer">
+      {% include "feeds/_post_actions.html" %}
+      {% if post.url %}
+        <span class="post-links">
+          <a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">Open on {{ post.link_label }} ↗</a>
+          {% if post.federated_url %}
+            &middot; <a href="{{ post.federated_url }}" target="_blank" rel="noopener noreferrer">View on {{ post.account.metadata.instance_domain }} ↗</a>
+          {% endif %}
+        </span>
+      {% endif %}
+    </div>
   </article>
 {% endfor %}
