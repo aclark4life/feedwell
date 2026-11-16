@@ -137,7 +137,7 @@ works — including looking up your own profile right after connecting, not
 just reading timelines. Without that, you'll see a "client-not-enrolled"
 warning after the OAuth login step succeeds. This is an X-side billing
 requirement, nothing to fix in feedwell — the connection is still saved
-(shown as "(pending profile)" until resolved), and clicking Refresh after
+(shown as "(pending profile)" until resolved), and clicking "feedwell" in the nav after
 you enable billing automatically fills in your real profile and starts
 syncing your timeline, no need to reconnect.
 

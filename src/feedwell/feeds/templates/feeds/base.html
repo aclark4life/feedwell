@@ -141,6 +141,15 @@
       opacity: 0; pointer-events: none; transform: translateY(0.5rem);
       transition: opacity 0.2s ease, transform 0.2s ease;
     }
+    /* "feedwell" and "My posts" in the nav are refresh forms; make their
+       buttons look like plain links. */
+    .nav-refresh { margin: 0; }
+    .nav-refresh button {
+      width: auto; margin: 0; padding: 0; border: 0; background: none;
+      color: var(--pico-primary, #1a5fb4); font-size: inherit; line-height: inherit;
+    }
+    .nav-refresh button:hover { text-decoration: underline; }
+
     #back-to-top.is-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
   </style>
 </head>
@@ -156,11 +165,39 @@
   <header class="container" id="top">
     <nav>
       <ul>
-        <li><strong><a href="{% url 'feed' %}">feedwell</a></strong></li>
+        {% if user.is_authenticated %}
+          {# Clicking the brand syncs every connected account (see RefreshFeedView). #}
+          <li>
+            <form
+              class="nav-refresh"
+              method="post"
+              action="{% url 'refresh_feed' %}"
+              hx-boost="false"
+              onsubmit="this.querySelector('button').setAttribute('aria-busy', 'true');"
+            >
+              {% csrf_token %}
+              <button type="submit" title="Refresh feed"><strong>feedwell</strong></button>
+            </form>
+          </li>
+        {% else %}
+          <li><strong><a href="{% url 'feed' %}">feedwell</a></strong></li>
+        {% endif %}
       </ul>
       <ul>
         {% if user.is_authenticated %}
-          <li><a href="{% url 'my_posts' %}">My posts</a></li>
+          {# Clicking "My posts" syncs your own posts (see RefreshMyPostsView). #}
+          <li>
+            <form
+              class="nav-refresh"
+              method="post"
+              action="{% url 'refresh_my_posts' %}"
+              hx-boost="false"
+              onsubmit="this.querySelector('button').setAttribute('aria-busy', 'true');"
+            >
+              {% csrf_token %}
+              <button type="submit" title="Refresh my posts">My posts</button>
+            </form>
+          </li>
           <li><a href="{% url 'connections' %}">Connections</a></li>
           <li>{{ user }}</li>
           <li>

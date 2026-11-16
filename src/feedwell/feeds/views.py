@@ -123,7 +123,7 @@ class MyPostsView(InfiniteScrollListMixin, LoginRequiredMixin, ListView):
     def get(self, request, *args, **kwargs):
         # Auto-sync the first time there's nothing to show yet, so viewing
         # "My posts" for the first time (or after connecting Mastodon/Bluesky)
-        # doesn't require a manual Refresh click first. Skip this for htmx's
+        # shows something right away. Skip this for htmx's
         # infinite-scroll page requests -- those only fire once there's
         # already at least one post to paginate past.
         is_load_more = request.headers.get("HX-Request") == "true" and request.GET.get("page")
@@ -155,7 +155,7 @@ class MyPostsView(InfiniteScrollListMixin, LoginRequiredMixin, ListView):
 
 
 class RefreshMyPostsView(LoginRequiredMixin, View):
-    """Manual sync trigger for the "My posts" feed."""
+    """Sync trigger for the "My posts" feed (the nav's "My posts" link)."""
 
     def post(self, request, *args, **kwargs):
         total, errors = sync_my_posts(request.user)
@@ -520,7 +520,7 @@ class RefreshFeedView(LoginRequiredMixin, View):
             count_label = "post" if total == 1 else "posts"
             messages.success(request, f"Synced {total} new/updated {count_label}.")
         if more:
-            messages.info(request, "Still catching up -- press Refresh to keep going.")
+            messages.info(request, "Still catching up -- click feedwell to keep going.")
         elif not total and not errors:
             messages.info(request, "Nothing new to sync.")
         return redirect(reverse("feed"))
