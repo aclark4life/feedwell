@@ -18,18 +18,17 @@
     .message-info { border-color: #1565c0; background: #e8f1fb; color: #0d3866; }
 
     /* Per-platform accent: a colored left border + light background tint +
-       a small pill badge naming the platform, so a mixed feed is easy to
-       tell apart at a glance. */
+       pill links naming where the post can be opened, so a mixed feed is
+       easy to tell apart at a glance. */
     article[class^="platform-"] { border-left: 6px solid transparent; padding-left: 0.85rem; }
     .platform-label {
-      display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px;
-      font-size: 0.75rem; font-weight: 600; color: #fff !important;
+      display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.1rem 0.55rem; border-radius: 999px;
+      font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+      color: #fff !important; text-decoration: none;
     }
-    /* Pico sets its own explicit link color on <a>, which otherwise wins
-       over the badge's inherited white and disappears into the saturated
-       background. Force it back to white, with an underline so the link
-       is still discoverable without relying on color alone. */
-    .platform-label a { color: #fff !important; text-decoration: underline; }
+    /* Pico's own <a> color would otherwise win over the pill's white. */
+    .platform-label:hover { color: #fff !important; text-decoration: underline; }
+    .bookmark-icon { width: 0.7rem; height: 0.7rem; fill: currentColor; flex: none; }
     .platform-mastodon { border-left-color: #6364ff; background: #6364ff14; }
     .platform-mastodon .platform-label { background: #6364ff; }
     .platform-bluesky { border-left-color: #1185fe; background: #1185fe14; }
@@ -48,9 +47,10 @@
     }
     .day-divider::before, .day-divider::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.25; }
 
-    /* Post header row: author on the left, timestamp pinned to the
-       upper-right corner. */
+    /* Post header row: author and every "open elsewhere" link grouped on
+       the left, timestamp pinned to the upper-right corner. */
     .post-header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+    .post-byline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; }
     .post-timestamp { color: var(--pico-muted-color, #6c757d); font-size: 0.8rem; white-space: nowrap; }
 
     /* Post media: a two-column grid of fixed-height tiles (one full-width
@@ -102,8 +102,8 @@
     }
     #lightbox.single .lightbox-nav, #lightbox.single .lightbox-counter { display: none; }
 
-    /* Post footer: like/boost/reply bar on the left, "Open on ..." links on
-       the right. The bar spans the full row while its reply form is open. */
+    /* Post footer: the like/boost/reply bar. It spans the full row while
+       its reply form is open. */
     .post-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.5rem; }
     .post-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
     .post-actions.replying { flex-basis: 100%; }
@@ -120,7 +120,6 @@
     .post-actions.replying .reply-form { display: block; }
     .reply-form textarea { margin-bottom: 0.5rem; }
     .reply-form button { width: auto; padding: 0.3rem 1rem; }
-    .post-links { font-size: 0.9rem; margin-left: auto; }
 
     .feed-stats {
       background: var(--pico-code-background-color, #f4f4f5); border-radius: 0.5rem;

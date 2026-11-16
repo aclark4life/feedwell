@@ -12,19 +12,30 @@
     {% endif %}
   >
     <div class="post-header">
-      <span>
-        {% if post.author_profile_url %}
-          <strong><a href="{{ post.author_profile_url }}" target="_blank" rel="noopener noreferrer">{{ post.author_handle|default:post.author_name }}</a></strong>
-        {% else %}
-          <strong>{{ post.author_handle|default:post.author_name }}</strong>
-        {% endif %}
-        <small class="platform-label">{% spaceless %}(
-          {% if post.author_federated_profile_url %}
-            <a href="{{ post.author_federated_profile_url }}" target="_blank" rel="noopener noreferrer">{{ post.account.connection_label }}</a>
+      {% comment %}
+        Everywhere this post can be opened, grouped next to the author: the
+        author's profile (the name -- as federated onto your instance when
+        there is one, so your account can follow them), then a pill per
+        place the post itself can be opened: for a remote Mastodon author,
+        its federated copy on your instance first (where your account can
+        reply, boost or favourite it natively), then its home service.
+      {% endcomment %}
+      <span class="post-byline">
+        {% with profile_url=post.author_federated_profile_url|default:post.author_profile_url %}
+          {% if profile_url %}
+            <strong><a href="{{ profile_url }}" target="_blank" rel="noopener noreferrer">{{ post.author_handle|default:post.author_name }}</a></strong>
           {% else %}
-            {{ post.account.connection_label }}
+            <strong>{{ post.author_handle|default:post.author_name }}</strong>
           {% endif %}
-        ){% endspaceless %}</small>
+        {% endwith %}
+        {% if post.federated_url %}
+          <a class="platform-label" href="{{ post.federated_url }}" target="_blank" rel="noopener noreferrer"
+             title="Open post on your instance, {{ post.account.connection_label }}"><svg class="bookmark-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.5h10v13l-5-3.5-5 3.5z"/></svg>{{ post.account.connection_label }}</a>
+        {% endif %}
+        {% if post.url %}
+          <a class="platform-label" href="{{ post.url }}" target="_blank" rel="noopener noreferrer"
+             title="Open post on {{ post.link_label }}"><svg class="bookmark-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.5h10v13l-5-3.5-5 3.5z"/></svg>{{ post.link_label }}</a>
+        {% endif %}
       </span>
       <time class="post-timestamp" datetime="{{ post.posted_at|date:'c' }}" title="{{ post.posted_at }}">{{ post.posted_at|date:"M j, g:i A" }}</time>
     </div>
@@ -34,14 +45,6 @@
     {% endif %}
     <div class="post-footer">
       {% include "feeds/_post_actions.html" %}
-      {% if post.url %}
-        <span class="post-links">
-          <a href="{{ post.url }}" target="_blank" rel="noopener noreferrer">Open on {{ post.link_label }} ↗</a>
-          {% if post.federated_url %}
-            &middot; <a href="{{ post.federated_url }}" target="_blank" rel="noopener noreferrer">View on {{ post.account.metadata.instance_domain }} ↗</a>
-          {% endif %}
-        </span>
-      {% endif %}
     </div>
   </article>
 {% endfor %}
